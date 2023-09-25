@@ -24,7 +24,7 @@ Domestic violence prediction is a critical task that can benefit from multimodal
 
 Before running the code, ensure you have the following installed:
 
-- Python 3.9.18
+- Python 3.8.15
 - Required Python packages (specified in `requirements.txt`)
 
 ### Installation
