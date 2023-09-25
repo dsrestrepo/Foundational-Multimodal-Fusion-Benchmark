@@ -1,6 +1,8 @@
-# Bias in Large Language Models (LLMs) Across Languages
+# Multimodal Data Fusion Using Foundational Models.
 
-This repository contains code and resources for investigating bias in Large Language Models (LLMs) across multiple languages. The project aims to analyze and mitigate biases present in LLMs in medical text classification across multiple languages.
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+This repository contains a framework for Multimodal Data Fusion using Foundational Models, with a specific focus on Domestic Violence Prediction. The framework allows you to combine satellite images and social media data to enhance the accuracy of domestic violence prediction models.
 
 ## Table of Contents
 
@@ -14,7 +16,7 @@ This repository contains code and resources for investigating bias in Large Lang
 
 ## Introduction
 
-Bias in Large Language Models (LLMs) Across Languages is a research project dedicated to studying and addressing biases that arise in text generation by LLMs when dealing with different languages. This research explores how LLMs may produce biased or stereotypical content in multiple languages and seeks to develop methods to reduce such biases.
+Domestic violence prediction is a critical task that can benefit from multimodal data fusion. This framework leverages state-of-the-art foundational models to combine satellite imagery and social media data for enhanced prediction accuracy. The framework is flexible and can be adapted to other multimodal data fusion tasks.
 
 ## Setup
 
@@ -30,8 +32,8 @@ Before running the code, ensure you have the following installed:
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/dsrestrepo/MIT_LLMs_Language_bias.git
-   cd MIT_LLMs_Language_bias
+   git clone https://github.com/dsrestrepo/Foundational-Multimodal-Fusion-Framework.git
+   cd Foundational-Multimodal-Fusion-Framework
     ```
 
 
@@ -61,34 +63,14 @@ OPENAI_API_KEY=your_api_key_here
 Make sure you have a valid OpenAI API key to access the language model.
 
 ## Data
-This project uses a dataset with medical tests in different languages. Place the required dataset in the `data/` directory.
+This project uses a dataset of social media data, and satellite images extracted using the codes and data avaiable in `experiments/violence_prediction` in each directory.
 
 ## Usage
 
-Run main.py from the command line with the desired options. Here's an example command:
-
-```bash
-python main.py --csv_file data/YourMedicalTestQuestions.csv --model gpt-3.5-turbo --temperature 0.5 --n_repetitions 3 --reasoning --languages english portuguese french
-```
-
-The script accepts the following arguments:
-
-- --csv_file: Specify the path to the CSV file containing your medical test questions.
-- --model: Choose the GPT model to use (e.g., gpt-3.5-turbo or gpt-4).
-- --temperature: Set the temperature parameter for text generation (default is 0.0).
-- --n_repetitions: Define the number of times each question will be asked to the model. This is useful to measure model's consistency.
-- --reasoning: Enable reasoning mode to include explanations for responses. If this argument is not provided, the script will only generate responses. This argument increases the number of tokens used and may result in higher costs.
-- --languages: Provide a list of languages to process the questions (space-separated). **The name of the questions should match with the column names containing the questions in the CSV file**.
-
-The script will process the questions, generate responses, and save the results in a CSV file.
-
-Alternatively, you can run the jupyter notebook `main.ipynb` to run the code.
-
-We also provide a more customizable option using the class GPT. You can import the class and use it to generate responses from the model, change the prompt, and more. See the file `customized_main.ipynb` for an example.
 
 
 ## Analysis
-The analysis results, including bias assessment and mitigation strategies, will be documented in the results/ directory. This is where you can find the results of the test in the LLM across languages.
+
 
 ## Contributing
 Contributions to this research project are welcome. To contribute:
