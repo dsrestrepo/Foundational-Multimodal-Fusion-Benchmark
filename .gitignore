@@ -1,5 +1,9 @@
 # By now .csv files
-*.csv
+
+
+# Satellite Images:
+satellite.extractor/
+*.tiff
 
 # macOS system files
 .DS_Store
