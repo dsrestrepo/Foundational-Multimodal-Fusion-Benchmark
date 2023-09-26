@@ -11,7 +11,9 @@ Pillow==10.0.1
 rename==22.12.0
 sentinelhub==3.9.1
 setuptools==68.0.0
-skimage==0.0
+scikit-image==0.21.0
 seaborn==0.12.2
 geemap==0.27.1
 plotly==5.17.0
+python-dotenv==1.0.0
+opencv-python==4.8.0.76
