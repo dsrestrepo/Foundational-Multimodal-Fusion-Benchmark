@@ -1,4 +1,11 @@
 # By now .csv files
+*.csv
+*.txt
+
+# Images:
+*.png
+*.jpg
+*.jpeg
 
 
 # Satellite Images:
