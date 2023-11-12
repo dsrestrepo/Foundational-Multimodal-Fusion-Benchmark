@@ -4,8 +4,15 @@ import tarfile
 import zipfile
 import shutil
 import pandas as pd
+import gdown
+from sklearn.model_selection import train_test_split
+from tqdm import tqdm as tqdm
+import urllib.request
+import numpy as np
+from urllib.error import HTTPError
+import time
 
-
+########### DAQUAR ###########
 def get_daquar_dataset(output_dir="data/"):
     """
     Downloads and stores the DAQUAR dataset.
@@ -127,6 +134,8 @@ def preprocess_daquar_dataset(output_dir="data/"):
 
     # Reorder columns
     combined_df = combined_df[['question', 'image_id', 'answer', 'split']]
+    
+    combined_df['question'] = combined_df['question'].str.replace(r'\s*in the image\d+\s*$', '')
 
     # Save the combined dataframe to a CSV file
     output_file_path = os.path.join(output_dir, "labels.csv")
@@ -134,6 +143,8 @@ def preprocess_daquar_dataset(output_dir="data/"):
 
     print(f"Preprocessed data saved to {output_file_path}")
 
+    
+########### COCO- QA ###########
 def get_cocoqa_dataset(output_dir="data/"):
     """
     Downloads and stores the COCO-QA dataset along with COCO images.
@@ -292,3 +303,339 @@ def process_cocoqa_data(output_dir="data/"):
         os.remove(file_path)
 
     print("Images removed successfully.")
+
+    
+########### Fakeddit ###########
+
+def download_fakeddit_files(out_dir='dataset/'):
+    """
+    Downloads Fakeddit dataset files from Google Drive.
+
+    Parameters:
+    - out_dir (str, optional): Output directory where the downloaded files will be stored.
+                              Default is 'dataset/'.
+
+    Notes:
+    - The function downloads and extracts Fakeddit dataset files from the specified Google Drive links.
+    - The files are downloaded as zip files and then extracted, and the zip files are removed after extraction.
+
+    Example:
+    ```python
+    download_fakeddit_files(out_dir='my_dataset/')
+    ```
+
+    Google Drive Links:
+    - Test set:   https://drive.google.com/uc?id=1p9EewIKVcFbipVRLZNGYc2JbSC7A0SWv
+    - Train set:  https://drive.google.com/uc?id=1XsOkD3yhxgWu8URMes0S9LVSwuFJ4pT6
+    - Validation set: https://drive.google.com/uc?id=1Z99QrwpthioZQY2U6HElmnx8jazf7-Kv
+    """
+    # Create the output directory if it doesn't exist
+    os.makedirs(out_dir, exist_ok=True)
+
+    # Define the file URLs
+    file_urls = {
+        'test': 'https://drive.google.com/uc?id=1p9EewIKVcFbipVRLZNGYc2JbSC7A0SWv',
+        'train': 'https://drive.google.com/uc?id=1XsOkD3yhxgWu8URMes0S9LVSwuFJ4pT6',
+        'val': 'https://drive.google.com/uc?id=1Z99QrwpthioZQY2U6HElmnx8jazf7-Kv'
+    }
+
+    for file_name, file_url in file_urls.items():
+        # Download the file
+        output_file = os.path.join(out_dir, f'{file_name}.tsv')
+        gdown.download(file_url, output_file, quiet=False)
+
+        
+
+def download_full_set_images(out_dir='images/'):
+    """
+    Downloads and extracts images from the specified Google Drive link.
+
+    Parameters:
+    - out_dir (str, optional): Output directory where the extracted images will be stored.
+                              Default is 'images/'.
+
+    Notes:
+    - The function downloads the 'public_images.tar.bz2' file from the specified Google Drive link
+      and extracts its contents into the specified output directory.
+
+    Example:
+    ```python
+    download_and_extract_images(out_dir='my_images/')
+    ```
+
+    Google Drive Link:
+    - https://drive.google.com/file/d/1cjY6HsHaSZuLVHywIxD5xQqng33J5S2b/view
+    """
+    # Create the output directory if it doesn't exist
+    os.makedirs(out_dir, exist_ok=True)
+
+    # Define the file URL
+    file_url = 'https://drive.google.com/uc?id=1cjY6HsHaSZuLVHywIxD5xQqng33J5S2b'
+
+    # Download the tar.bz2 file
+    tar_file = os.path.join(out_dir, 'public_images.tar.bz2')
+    gdown.download(file_url, tar_file, quiet=False)
+
+    # Extract the contents of the tar.bz2 file
+    with tarfile.open(tar_file, 'r:bz2') as tar:
+        tar.extractall(out_dir)
+
+    # Remove the tar.bz2 file after extraction
+    os.remove(tar_file)
+
+
+def create_stratified_subset_fakeddit(root_path, subset_size):
+    """
+    Create a random stratified subset of the Fakeddit dataset and save it as 'labels.csv'.
+
+    Parameters:
+    - root_path (str): The root path to the directory containing the Fakeddit dataset files.
+    - subset_size (float): The desired size of the subset, expressed as a fraction between 0 and 1.
+
+    Raises:
+    - FileNotFoundError: If the specified root path does not exist.
+
+    Returns:
+    None
+
+    The function reads the 'train.tsv', 'test.tsv', and 'val.tsv' files from the specified root path.
+    It performs stratified random sampling based on the '2_way_label' column for each dataset.
+    The resulting subsets are concatenated into a single dataframe, and a 'split' column is added to
+    indicate the original file ('train', 'test', or 'val').
+    The resulting dataframe is saved as 'labels.csv' in the root path.
+
+    Example usage:
+    ```python
+    root_path = 'path/to/your/dataset'
+    subset_size = 0.8  # 80% subset size
+    create_stratified_subset_fakeddit(root_path, subset_size)
+    ```
+
+    Note:
+    - Ensure that the dataset files ('train.tsv', 'test.tsv', 'val.tsv') are present in the specified root path.
+    - Adjust the subset_size parameter based on the desired size of the subset.
+
+    Dependencies:
+    - os
+    - pandas as pd
+    - train_test_split from sklearn.model_selection
+    """
+    # Check if the root path exists
+    if not os.path.exists(root_path):
+        raise FileNotFoundError(f"The root path {root_path} does not exist.")
+
+    # Define the file names
+    train_file = os.path.join(root_path, 'train.tsv')
+    test_file = os.path.join(root_path, 'test.tsv')
+    val_file = os.path.join(root_path, 'val.tsv')
+
+    # Read the datasets
+    train_df = pd.read_csv(train_file, sep='\t')
+    train_df = train_df[train_df['image_url'].notna()]
+    test_df = pd.read_csv(test_file, sep='\t')
+    test_df = test_df[test_df['image_url'].notna()]
+    val_df = pd.read_csv(val_file, sep='\t')
+    val_df = val_df[val_df['image_url'].notna()]
+
+    # Stratified sampling based on '2_way_label'
+    train_subset, _ = train_test_split(train_df, test_size=1 - subset_size, stratify=train_df['2_way_label'])
+    test_subset, _ = train_test_split(test_df, test_size=1 - subset_size, stratify=test_df['2_way_label'])
+    val_subset, _ = train_test_split(val_df, test_size=1 - subset_size, stratify=val_df['2_way_label'])
+
+    # Add a 'split' column to indicate the original file
+    train_subset['split'] = 'train'
+    test_subset['split'] = 'test'
+    val_subset['split'] = 'val'
+
+    # Concatenate the subsets
+    result_df = pd.concat([train_subset, test_subset, val_subset], ignore_index=True)
+
+    # Save the resulting dataframe to a 'labels.csv' file
+    result_df.to_csv(os.path.join(root_path, 'labels.csv'), index=False)
+
+
+def download_images_from_file(root, labels_name='labels.csv', max_retries=5, delay_seconds=2):
+    """
+    Download images from URLs specified in a dataframe and save them in an 'images' directory.
+
+    Parameters:
+    - root (str): The root path to the directory containing the labels file and where the 'images' directory will be created.
+    - labels_name (str, optional): The name of the labels file (default is 'labels.csv').
+    - max_retries (int, optional): The maximum number of retries for a failed request (default is 3).
+    - delay_seconds (float, optional): The delay between retry attempts in seconds (default is 2).
+
+    Raises:
+    - FileNotFoundError: If the specified root path does not exist.
+
+    Returns:
+    None
+
+    The function reads the labels file (CSV or TSV) from the specified root path, which should contain columns such as 'hasImage', 'image_url', and 'id'.
+    It creates an 'images' directory within the root path and downloads images from the specified URLs, saving them with the 'id' as the filename.
+    The progress is displayed using a tqdm progress bar.
+
+    Example usage:
+    ```python
+    root_path = 'path/to/your/dataset'
+    labels_file = 'labels.csv'
+    download_images_from_file(root_path, labels_name=labels_file)
+    ```
+
+    Note:
+    - The labels file should contain columns like 'hasImage', 'image_url', and 'id'.
+    - The function uses the 'tqdm' library to display a progress bar during image downloads.
+
+    Dependencies:
+    - os
+    - pandas as pd
+    - numpy as np
+    - tqdm
+    - urllib.request
+    - urllib.error.HTTPError
+    - time
+    """
+    # Check if the root path exists
+    if not os.path.exists(root):
+        raise FileNotFoundError(f"The root path {root} does not exist.")
+
+    labels_path = os.path.join(root, labels_name)
+    images_path = os.path.join(root, "images")
+
+    if labels_path.endswith('.csv'):
+        df = pd.read_csv(labels_path)
+    else:
+        df = pd.read_csv(labels_path, sep="\t")
+
+    df = df.replace(np.nan, '', regex=True)
+    df.fillna('', inplace=True)
+
+    pbar = tqdm(total=len(df))
+
+    # Create the output directory if it doesn't exist
+    os.makedirs(images_path, exist_ok=True)
+
+    for index, row in df.iterrows():
+        if row["hasImage"] == True and row["image_url"] != "" and row["image_url"] != "nan":
+            image_url = row["image_url"]
+            image_name = row["id"] + ".jpg"
+            image_path = os.path.join(images_path, image_name)
+
+            retry_count = 0
+            while retry_count < max_retries:
+                try:
+                    urllib.request.urlretrieve(image_url, image_path)
+                    #print(f"Image '{image_name}' downloaded successfully.")
+                    break
+                except HTTPError as e:
+                    if e.code == 429:  # Too Many Requests
+                        # print(f"Rate limit exceeded. Retrying in {delay_seconds} seconds...")
+                        time.sleep(delay_seconds)
+                        retry_count += 1
+                    else:
+                        # print(f"Failed to download image '{image_name}'. HTTP Error: {e.code}")
+                        break
+            else:
+                print(f"Failed to download image '{image_name}' after {max_retries} retries.")
+
+        pbar.update(1)
+    print("done")
+
+    
+########### Recipes5k ###########
+
+def download_recipes5k_dataset(out_dir='output/'):
+    """
+    Downloads and unzips a file from the specified Google Drive link.
+
+    Parameters:
+    - out_dir (str, optional): Output directory where the unzipped contents will be stored.
+                              Default is 'output/'.
+
+    Notes:
+    - The function downloads the file from the specified Google Drive link and extracts its contents
+      into the specified output directory.
+
+    Example:
+    ```python
+    download_and_unzip_file(out_dir='my_output/')
+    ```
+
+    Google Drive Link:
+    - https://drive.google.com/file/d/11ojDNqjowZIf9RzLWc25_xnoHefDvSBS/view
+    """
+    # Create the output directory if it doesn't exist
+    os.makedirs(out_dir, exist_ok=True)
+
+    # Define the file URL
+    file_url = 'https://drive.google.com/uc?id=11ojDNqjowZIf9RzLWc25_xnoHefDvSBS'
+
+    # Download the zip file
+    zip_file = os.path.join(out_dir, 'downloaded_file.zip')
+    gdown.download(file_url, zip_file, quiet=False)
+
+    # Extract the contents of the zip file
+    with zipfile.ZipFile(zip_file, 'r') as zip_ref:
+        zip_ref.extractall(out_dir)
+
+    # Remove the zip file after extraction
+    os.remove(zip_file)
+
+    
+def preprocess_recipes5k(root_dir='dataset/'):
+    """
+    Preprocesses the Recipes5k dataset and generates a labels.csv file.
+
+    Parameters:
+    - root_dir (str, optional): Root directory where the dataset is stored. Default is 'dataset/'.
+
+    Notes:
+    - The function reads the ingredients_Recipes5k.txt file and processes the labels and images files
+      to create a labels.csv file with additional columns for class and split information.
+
+    Example:
+    ```python
+    preprocess_recipes5k(root_dir='my_dataset/')
+    ```
+
+    Dataset Structure:
+    - annotations/<set_split>_images.txt
+    - annotations/<set_split>_labels.txt
+    - annotations/ingredients_Recipes5k.txt
+    """
+    # Read ingredients_Recipes5k.txt as a DataFrame
+    ingredients_df = pd.read_csv(os.path.join(root_dir, 'annotations', 'ingredients_Recipes5k.txt'), header=None, names=['ingredients'], sep='\t')
+
+    # Initialize an empty DataFrame for labels
+    labels_df = pd.DataFrame()
+
+    # Process each set_split (train, test, val)
+    for set_split in ['train', 'test', 'val']:
+        # Read images and labels files
+        images_file = os.path.join(root_dir, 'annotations', f'{set_split}_images.txt')
+        labels_file = os.path.join(root_dir, 'annotations', f'{set_split}_labels.txt')
+
+        images_df = pd.read_csv(images_file, header=None, names=['image'], sep='\t')
+        labels_indices_df = pd.read_csv(labels_file, header=None, names=['index'], sep='\t')
+
+        # Create class and split columns
+        images_df['class'] = images_df['image'].apply(lambda x: x.split('/')[0])
+        images_df['split'] = set_split
+
+        # Concatenate images and labels indices DataFrames
+        set_split_df = pd.concat([images_df, labels_indices_df], axis=1)
+
+        # Concatenate with the main labels DataFrame
+        labels_df = pd.concat([labels_df, set_split_df])
+
+    labels_df = labels_df.set_index('index')
+    labels_df.index.name = None
+
+    # Merge with ingredients DataFrame using the index
+    final_df = pd.merge(labels_df, ingredients_df, left_index=True, right_index=True)
+    final_df = final_df.sort_index()
+
+    # Save the resulting DataFrame as labels.csv
+    output_csv_path = os.path.join(root_dir, 'labels.csv')
+    final_df.to_csv(output_csv_path, index=False)
+
+

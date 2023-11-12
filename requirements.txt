@@ -4,7 +4,6 @@ earthengine_api==0.1.370
 epiweeks==2.2.0
 matplotlib==3.7.3
 numpy==1.24.4
-oci==2.112.1
 pandas==2.0.3
 Pillow==10.0.1
 rename==22.12.0
@@ -24,3 +23,4 @@ torch==2.1.0
 torchvision==0.16.0
 transformers==4.35.0
 umap-learn==0.5.4
+urllib3==1.25.3
