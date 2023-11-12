@@ -519,21 +519,24 @@ def download_images_from_file(root, labels_name='labels.csv', max_retries=5, del
             image_url = row["image_url"]
             image_name = row["id"] + ".jpg"
             image_path = os.path.join(images_path, image_name)
-
-            retry_count = 0
-            while retry_count < max_retries:
-                try:
-                    urllib.request.urlretrieve(image_url, image_path)
-                    #print(f"Image '{image_name}' downloaded successfully.")
-                    break
-                except HTTPError as e:
-                    if e.code == 429:  # Too Many Requests
-                        # print(f"Rate limit exceeded. Retrying in {delay_seconds} seconds...")
-                        time.sleep(delay_seconds)
-                        retry_count += 1
-                    else:
-                        # print(f"Failed to download image '{image_name}'. HTTP Error: {e.code}")
+            
+            if os.path.exists(image_path):
+                continue
+            else:
+                retry_count = 0
+                while retry_count < max_retries:
+                    try:
+                        urllib.request.urlretrieve(image_url, image_path)
+                        #print(f"Image '{image_name}' downloaded successfully.")
                         break
+                    except HTTPError as e:
+                        if e.code == 429:  # Too Many Requests
+                            # print(f"Rate limit exceeded. Retrying in {delay_seconds} seconds...")
+                            time.sleep(delay_seconds)
+                            retry_count += 1
+                        else:
+                            # print(f"Failed to download image '{image_name}'. HTTP Error: {e.code}")
+                            break
             else:
                 print(f"Failed to download image '{image_name}' after {max_retries} retries.")
 
