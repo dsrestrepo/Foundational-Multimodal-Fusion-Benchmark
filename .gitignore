@@ -1,6 +1,7 @@
 # By now .csv files
-*.csv
+#*.csv
 *.txt
+*.tsv
 
 # Images:
 *.png
