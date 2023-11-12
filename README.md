@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-This repository contains a framework for Multimodal Data Fusion using Foundational Models, with a specific focus on Domestic Violence Prediction. The framework allows you to combine satellite images and social media data to enhance the accuracy of domestic violence prediction models.
+This repository contains a framework for Multimodal Data Fusion using Foundational Models. The framework allows you to extract, preprocess and combine data from different sources and modalities using the most powerful vision and language models
 
 ## Table of Contents
 
@@ -50,7 +50,7 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-4. Set up your OpenAI API key:
+4. Set up your OpenAI API (Optional) key if you'll use GPT as foundational model:
 
 Create a `.env` file in the root directory.
 
@@ -59,13 +59,35 @@ Add your OpenAI API key to the `.env` file:
 ```makefile
 OPENAI_API_KEY=your_api_key_here
 ```
-
 Make sure you have a valid OpenAI API key to access the language model.
 
+5. Set up your Sentinel Hub APIs to get the Satellite Images:
+
+You'll get those in your profile in your sentinell hub account.
+
+```makefile
+CLIENT_ID = your_client_id
+CLIENT_SECRET = your_client_secret
+```
+
+
 ## Data
-This project uses a dataset of social media data, and satellite images extracted using the codes and data avaiable in `experiments/violence_prediction` in each directory.
+
+This project uses 5 datasets. You'll find instructions and code about to extract each dataset in `get_datasets.ipynb`:
+
+1. Gender Violence Dataset: A dataset of internet data such as social media or goodle searches, and satellite images to predict gender violence. The codes can be used to extract a dataset for other tasks. The codes to extrac the dataset are avaibale in: `datasets/violence_prediction`.
+
+2. [DAQUAR Dataset](https://www.mpi-inf.mpg.de/departments/computer-vision-and-machine-learning/research/vision-and-language/visual-turing-challenge#c7057): DAQUAR (Dataset for Question Answering on Real-world images) dataset was created for the purpose of advancing research in visual question answering (VQA). It consists of indoor scene images, each accompanied by sets of questions related to the scene's content. The dataset serves as a benchmark for training and evaluating models in understanding images and answering questions about them.
+
+3. [COCO-QA Dataset](https://www.cs.toronto.edu/~mren/research/imageqa/data/cocoqa/): The COCO-QA (COCO Question-Answering) dataset is designed for the task of visual question-answering. It is a subset of the COCO (Common Objects in Context) dataset, which is a large-scale dataset containing images with object annotations. The COCO-QA dataset extends the COCO dataset by including questions and answers associated with the images. Each image in the COCO-QA dataset is accompanied by a set of questions and corresponding answers.
+
+4. [Fakeddit Dataset](https://fakeddit.netlify.app/): Fakeddit is a large-scale multimodal dataset for fine-grained fake news detection. It consists of over 1 million samples from multiple categories of fake news, including satire, misinformation, and fabricated news. The dataset includes text, images, metadata, and comment data, making it a rich resource for developing and evaluating fake news detection models.
+
+5. [Recipes5k Dataset](http://www.ub.edu/cvub/recipes5k/): The Recipes5k dataset comprises 4,826 recipes featuring images and corresponding ingredient lists, with 3,213 unique ingredients simplified from 1,014 by removing overly-descriptive particles, offering a diverse collection of alternative preparations for each of the 101 food types from Food101, meticulously balanced across training, validation, and test splits. The dataset addresses intra- and inter-class variability, extracted from Yummly with 50 recipes per food type.
 
 ## Usage
+
+1. Get the dataset: Use the notebook `get_datasets.ipynb`. Functions and code to extract and preprocess each dataset were created.
 
 
 
@@ -81,13 +103,10 @@ Contributions to this research project are welcome. To contribute:
 4. Create tests.
 5. Submit a pull request.
 
-We encourage the community to join our efforts to understand and mitigate bias in LLMs across languages.
 
 ## License
 This project is licensed under the MIT License.
 
-
-In this updated README, the focus is on bias analysis in LLMs across languages. You can customize it further to include specific details about your data sources, analysis methodologies, and mitigation strategies related to bias in LLMs across different languages.
 
 ## Contact
 

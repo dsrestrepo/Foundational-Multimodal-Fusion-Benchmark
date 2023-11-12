@@ -373,7 +373,7 @@ def download_full_set_images(out_dir='images/'):
     file_url = 'https://drive.google.com/uc?id=1cjY6HsHaSZuLVHywIxD5xQqng33J5S2b'
 
     # Download the tar.bz2 file
-    tar_file = os.path.join(out_dir, 'public_images.tar.bz2')
+    tar_file = os.path.join(out_dir, 'Images.tar.bz2')
     gdown.download(file_url, tar_file, quiet=False)
 
     # Extract the contents of the tar.bz2 file
@@ -454,7 +454,7 @@ def create_stratified_subset_fakeddit(root_path, subset_size):
     result_df.to_csv(os.path.join(root_path, 'labels.csv'), index=False)
 
 
-def download_images_from_file(root, labels_name='labels.csv', max_retries=5, delay_seconds=2):
+def download_images_from_file(root, labels_name='labels.csv', max_retries=3, delay_seconds=2):
     """
     Download images from URLs specified in a dataframe and save them in an 'images' directory.
 
@@ -521,22 +521,23 @@ def download_images_from_file(root, labels_name='labels.csv', max_retries=5, del
             image_path = os.path.join(images_path, image_name)
             
             if os.path.exists(image_path):
+                pbar.update(1)
                 continue
-            else:
-                retry_count = 0
-                while retry_count < max_retries:
-                    try:
-                        urllib.request.urlretrieve(image_url, image_path)
-                        #print(f"Image '{image_name}' downloaded successfully.")
+
+            retry_count = 0
+            while retry_count < max_retries:
+                try:
+                    urllib.request.urlretrieve(image_url, image_path)
+                    #print(f"Image '{image_name}' downloaded successfully.")
+                    break
+                except HTTPError as e:
+                    if e.code == 429:  # Too Many Requests
+                        # print(f"Rate limit exceeded. Retrying in {delay_seconds} seconds...")
+                        time.sleep(delay_seconds)
+                        retry_count += 1
+                    else:
+                        # print(f"Failed to download image '{image_name}'. HTTP Error: {e.code}")
                         break
-                    except HTTPError as e:
-                        if e.code == 429:  # Too Many Requests
-                            # print(f"Rate limit exceeded. Retrying in {delay_seconds} seconds...")
-                            time.sleep(delay_seconds)
-                            retry_count += 1
-                        else:
-                            # print(f"Failed to download image '{image_name}'. HTTP Error: {e.code}")
-                            break
             else:
                 print(f"Failed to download image '{image_name}' after {max_retries} retries.")
 
