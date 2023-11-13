@@ -75,7 +75,10 @@ CLIENT_SECRET = your_client_secret
 
 This project uses 5 datasets. You'll find instructions and code about to extract each dataset in `get_datasets.ipynb`:
 
-1. Gender Violence Dataset: A dataset of internet data such as social media or goodle searches, and satellite images to predict gender violence. The codes can be used to extract a dataset for other tasks. The codes to extrac the dataset are avaibale in: `datasets/violence_prediction`.
+1. Gender Violence Dataset: A dataset of internet data such as social media or google searches, and satellite images to predict gender violence. The codes can be used to extract a dataset for other tasks. The codes to extrac the dataset are avaibale in: `datasets/violence_prediction`.
+
+* Satellite: To download the satellite images go to `datasets/violence_prediction/Satellite`. There you'll find the satellite extractor, this code uses the [Sentinel Hub API](https://www.sentinel-hub.com/develop/api/). Take into account that the satellite extractor requires the coordinates of the Region of Interes (ROI). You can use the file `Coordinates/get_coordinates.ipynb` to generate the ROI of your specific location. There is also a `DataAnalysis.ipynb` to assess the quality of the images.
+* Metadata: The labels are located in the directory `datasets/violence_prediction/Metadata`. The labels were downloaded from open public data sources through the number of police reports of domestic violence reported in Colombia  from January 1, 2010 to August 28, 2023. You can find information about the data sources in the `data_sources.txt`. Use the `get_dataset.ipynb` to preprocess and merge the data sources, and the `Data_Analysis.ipynb` to run a data analysis.
 
 2. [DAQUAR Dataset](https://www.mpi-inf.mpg.de/departments/computer-vision-and-machine-learning/research/vision-and-language/visual-turing-challenge#c7057): DAQUAR (Dataset for Question Answering on Real-world images) dataset was created for the purpose of advancing research in visual question answering (VQA). It consists of indoor scene images, each accompanied by sets of questions related to the scene's content. The dataset serves as a benchmark for training and evaluating models in understanding images and answering questions about them.
 
