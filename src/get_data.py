@@ -371,7 +371,7 @@ def download_full_set_images(out_dir='images/'):
 
     # Define the file URL
     file_url = 'https://drive.google.com/uc?id=1cjY6HsHaSZuLVHywIxD5xQqng33J5S2b'
-
+    
     # Download the tar.bz2 file
     tar_file = os.path.join(out_dir, 'Images.tar.bz2')
     gdown.download(file_url, tar_file, quiet=False)
@@ -379,6 +379,8 @@ def download_full_set_images(out_dir='images/'):
     # Extract the contents of the tar.bz2 file
     with tarfile.open(tar_file, 'r:bz2') as tar:
         tar.extractall(out_dir)
+        
+    os.rename(os.path.join(out_dir, 'public_image_set'), os.path.join(out_dir, 'images'))
 
     # Remove the tar.bz2 file after extraction
     os.remove(tar_file)
