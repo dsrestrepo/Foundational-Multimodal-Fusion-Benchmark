@@ -24,3 +24,4 @@ torchvision==0.16.0
 transformers==4.35.0
 umap-learn==0.5.4
 urllib3==1.25.3
+pytrends==4.9.2

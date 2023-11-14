@@ -11,6 +11,9 @@ import urllib.request
 import numpy as np
 from urllib.error import HTTPError
 import time
+import matplotlib.pyplot as plt
+
+
 
 ########### DAQUAR ###########
 def get_daquar_dataset(output_dir="data/"):
