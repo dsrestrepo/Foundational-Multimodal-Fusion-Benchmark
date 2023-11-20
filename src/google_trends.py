@@ -1,7 +1,28 @@
 import os
-from pytrends.request import TrendReq
 import matplotlib.pyplot as plt
 import pandas as pd
+from pytrends.request import TrendReq as UTrendReq
+
+GET_METHOD = "get"
+
+
+class TrendReq(UTrendReq):
+    """
+    Child class of pytrends' TrendReq
+    This allows to change the header to avoid 429 errors
+
+    Source: https://stackoverflow.com/questions/50571317/pytrends-the-request-failed-google-returned-a-response-with-code-429
+
+    Args:
+        UTrendReq (TrendReq): native TrendReq object from pytrends
+    """
+
+    def _get_data(self, url, method=GET_METHOD, trim_chars=0, **kwargs):
+        return super()._get_data(
+            url, method=GET_METHOD, trim_chars=trim_chars, headers=headers,
+            **kwargs
+        )
+
 
 def plot_top_queries(variable_data, variable_name, top_n=10):
     """
