@@ -1,5 +1,5 @@
-from .data_loader import ImageFolderDataset
-from .model import FoundationalCVModel
+from .cv_data_loader import ImageFolderDataset
+from .cv_model import FoundationalCVModel
 
 from torch.utils.data import DataLoader
 import torch

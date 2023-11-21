@@ -2,13 +2,14 @@ from torchvision import models
 from transformers import ConvNextV2ForImageClassification
 from transformers import ViTModel
 from transformers import CLIPModel
+from segment_anything import SamPredictor, sam_model_registry
 import torch
 import torch.nn as nn
 import subprocess
+import os
 
 import warnings
 warnings.filterwarnings("ignore")
-
 
 class CLIPImageEmbeddings(nn.Module):
     """
@@ -114,6 +115,27 @@ class FoundationalCVModel(torch.nn.Module):
                 'dinov2_giant': 'dinov2_vitg14',
             }
             self.backbone = torch.hub.load('facebookresearch/dinov2', backbone_path[backbone])
+            
+        elif backbone in ['sam_base', 'sam_large', 'sam_huge']:
+            # Repo: https://github.com/facebookresearch/segment-anything
+            # Paper: https://arxiv.org/abs/2304.02643
+            
+            backbone_path = {
+                'sam_base': 'vit_b',
+                'sam_large': 'vit_l',
+                'sam_huge': 'vit_h',
+            }
+            
+            import urllib.request
+            if backbone == 'sam_huge':
+                self.download_and_rename(url='https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth', filename=f"sam/{backbone_path[backbone]}.pth")
+            elif backbone == 'sam_large':
+                self.download_and_rename(url='https://dl.fbaipublicfiles.com/segment_anything/sam_vit_l_0b3195.pth', filename=f"sam/{backbone_path[backbone]}.pth")
+            elif backbone == 'sam_base':
+                self.download_and_rename(url='https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth', filename=f"sam/{backbone_path[backbone]}.pth")
+            
+            self.backbone = sam_model_registry[backbone_path[backbone]](checkpoint=f"sam/{backbone_path[backbone]}.pth")
+            self.backbone = nn.Sequential(*list(self.backbone.children())[:-2], nn.AdaptiveAvgPool2d(1), nn.Flatten())
 
             
         elif backbone in ['convnextv2_tiny', 'convnextv2_base', 'convnextv2_large']:
