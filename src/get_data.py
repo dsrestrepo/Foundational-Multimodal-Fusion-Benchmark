@@ -389,7 +389,7 @@ def download_full_set_images(out_dir='images/'):
     os.remove(tar_file)
 
 
-def create_stratified_subset_fakeddit(root_path, subset_size):
+def create_stratified_subset_fakeddit(root_path, subset_size, verify=False):
     """
     Create a random stratified subset of the Fakeddit dataset and save it as 'labels.csv'.
 
@@ -454,6 +454,16 @@ def create_stratified_subset_fakeddit(root_path, subset_size):
 
     # Concatenate the subsets
     result_df = pd.concat([train_subset, test_subset, val_subset], ignore_index=True)
+    
+    result_df['id'] = result_df['id'].astype(str) + '.jpg'
+    
+    if verify:
+        # Get the list of image filenames in the 'images' folder
+        images_folder = os.path.join(root_path, 'images')
+        image_filenames = [filename for filename in os.listdir(images_folder) if filename.endswith('.jpg')]
+
+        # Filter the 'id' column based on the images in the 'images' folder
+        result_df = result_df[result_df['id'].isin(image_filenames)]
 
     # Save the resulting dataframe to a 'labels.csv' file
     result_df.to_csv(os.path.join(root_path, 'labels.csv'), index=False)

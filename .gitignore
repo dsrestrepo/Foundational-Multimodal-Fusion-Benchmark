@@ -1,5 +1,7 @@
 # By now .csv files
-#*.csv
+*.csv
+!Embeddings/daquar/Embeddings_dinov2_base.csv
+!Embeddings/Recipes5k/Embeddings_dinov2_base.csv
 *.txt
 *.tsv
 

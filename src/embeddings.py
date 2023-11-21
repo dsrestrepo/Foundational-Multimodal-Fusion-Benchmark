@@ -1,5 +1,5 @@
 from .cv_data_loader import ImageFolderDataset
-from .cv_model import FoundationalCVModel
+from .cv_models import FoundationalCVModel
 
 from torch.utils.data import DataLoader
 import torch
@@ -83,7 +83,7 @@ def generate_embeddings(batch, batch_number, model):
     return img_names, features
 
 
-def get_embeddings_df(batch_size=32, path="../BRSET/images/", dataset_name='BRSET', backbone="dinov2", directory='Embeddings'):
+def get_embeddings_df(batch_size=32, path="../BRSET/images/", dataset_name='BRSET', backbone="dinov2", directory='Embeddings', transform=None, image_files=None):
     """
     Generate image embeddings and save them in a DataFrame.
 
@@ -110,9 +110,9 @@ def get_embeddings_df(batch_size=32, path="../BRSET/images/", dataset_name='BRSE
     # Create the custom dataset
     shape = (224, 224)
     if dataset_name == 'BRSET':
-        dataset = ImageFolderDataset(folder_path=path, shape=shape)
+        dataset = ImageFolderDataset(folder_path=path, shape=shape, transform=transform, image_files=image_files)
     else:
-        dataset = ImageFolderDataset(folder_path=path, shape=shape)
+        dataset = ImageFolderDataset(folder_path=path, shape=shape, transform=transform, image_files=image_files)
         
     # Create a DataLoader to generate embeddings
     batch_size = batch_size

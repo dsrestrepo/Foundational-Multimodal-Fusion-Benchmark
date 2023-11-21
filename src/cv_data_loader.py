@@ -41,7 +41,7 @@ class ImageFolderDataset(Dataset):
     - torchvision.transforms.Compose
     - PIL (Python Imaging Library)
     """
-    def __init__(self, folder_path, shape=(224, 224), transform=None):
+    def __init__(self, folder_path, shape=(224, 224), transform=None, image_files=None):
         """
         Initialize the ImageFolderDataset.
 
@@ -52,13 +52,33 @@ class ImageFolderDataset(Dataset):
           Default is a set of common transformations, including resizing and normalization.
         """
         self.folder_path = folder_path
-        self.image_files = [f for f in os.listdir(folder_path) if f.lower().endswith(('jpg', 'jpeg', 'png', 'gif'))]
+        
+        if image_files:
+            self.image_files = image_files
+            self.clean_unidentified_images()
+        else:
+            self.image_files = [f for f in os.listdir(folder_path) if f.lower().endswith(('jpg', 'jpeg', 'png', 'gif'))]
         self.shape = shape
         self.transform = transform or transforms.Compose([
             transforms.Resize(self.shape),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ])
+    
+    def clean_unidentified_images(self):
+        """
+        Clean the dataset by removing images causing UnidentifiedImageError.
+        """
+        cleaned_files = []
+        for img_name in self.image_files:
+            img_path = os.path.join(self.folder_path, img_name)
+            try:
+                Image.open(img_path).convert("RGB")
+                cleaned_files.append(img_name)
+            except:
+                print(f"Skipping {img_name} due to error")
+        self.image_files = cleaned_files
+    
     def __len__(self):
         return len(self.image_files)
 
@@ -73,10 +93,20 @@ class ImageFolderDataset(Dataset):
         tuple: A tuple containing the image file name and the preprocessed image as a PyTorch tensor.
         """
         img_name = self.image_files[idx]
-        img_path = os.path.join(self.folder_path, img_name)
-        img = Image.open(img_path).convert("RGB")
-        img = self.transform(img)
-        return img_name, img
+        img_path = os.path.join(self.folder_path, img_name) 
+        
+        try:
+            img = Image.open(img_path).convert("RGB")
+            img = self.transform(img)
+            return img_name, img
+        
+        except:
+            # Handle the error (e.g., print a message, log it)
+            print(f"Error loading image {img_name}")
+
+            # Return a placeholder or any value that indicates the error
+            return None
+
     
 
 
