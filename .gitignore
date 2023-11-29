@@ -4,6 +4,7 @@
 !Embeddings/Recipes5k/Embeddings_dinov2_base.csv
 *.txt
 *.tsv
+Models/*
 
 # Images:
 *.png
