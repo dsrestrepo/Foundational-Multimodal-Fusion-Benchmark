@@ -45,7 +45,6 @@ from umap import UMAP
 import plotly.graph_objects as go
 import plotly.express as px
 
-
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -548,7 +547,7 @@ def train_and_evaluate_model(X_train, X_test, y_train, y_test, models=None):
         
         # Train the model
         model.fit(X_train, y_train)
-
+        
         # Make predictions on the testing set
         accuracy, precision, recall, f1 = test_model(X_test, y_test, model)
         
