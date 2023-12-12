@@ -1,314 +1,366 @@
-from .cv_data_loader import ImageFolderDataset
-from .cv_models import FoundationalCVModel
-
-from torch.utils.data import DataLoader
-import torch
-
 import os
-import pandas as pd
-#import joblib
 
+import pandas as pd
 import numpy as np
-import pandas as pd
-import os
+from sklearn.metrics import accuracy_score, f1_score
+from sklearn.preprocessing import MultiLabelBinarizer
 
-# Split
-from sklearn.model_selection import train_test_split
+# Function to train classic ML model
+from sklearn.multiclass import OneVsRestClassifier
+from sklearn.svm import SVC
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
+
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import Dataset
+
 
 # Metrics
+import matplotlib.pyplot as plt
+import seaborn as sns
+
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 from sklearn.metrics import roc_curve
 from sklearn.metrics import confusion_matrix
 from sklearn.metrics import classification_report
 from sklearn.metrics import RocCurveDisplay
 
-# Plots:
-import matplotlib.pyplot as plt
-import seaborn as sns
-
-# Models
-# Random forest
-from sklearn.ensemble import RandomForestClassifier
-# Logistic regression
-from sklearn.linear_model import LogisticRegression
-# Support vector machine
-from sklearn.svm import SVC
-# Decision tree
-from sklearn.tree import DecisionTreeClassifier
-# K-nearest neighbors
-from sklearn.neighbors import KNeighborsClassifier
-
-## Embeddings Visualization
-from sklearn.manifold import TSNE
-from sklearn.decomposition import PCA
-from umap import UMAP
-import plotly.graph_objects as go
-import plotly.express as px
-
-import warnings
-warnings.filterwarnings("ignore")
 
 
+######### Merge Datasets #########
 
-def load_data(labels_path='data/labels.csv', backbone='dinov2_large', label='diabetic_retinopathy', directory='Embeddings', dataset_name='BRSET', normal=False, DR_ICDR_3=True):
+def process_embeddings(df, col_name):
     """
-    Load and prepare data for a machine learning task using image embeddings and corresponding labels.
+    Process embeddings in a DataFrame column.
 
-    This function loads image embeddings from a CSV file and merges them with label data from another CSV file.
-    The function allows for data preprocessing and label encoding for specific classification tasks.
-
-    Parameters:
-    - labels_path (str, optional): The path to the CSV file containing label data. Default is 'data/labels.csv'.
-    - backbone (str, optional): The name of the backbone used for image embeddings. Default is 'dinov2_large'.
-    - label (str, optional): The label to use for classification. Default is 'diabetic_retinopathy'.
-    - directory (str, optional): The directory where the embeddings CSV file is located. Default is 'Embeddings'.
-    - normal (bool, optional): If True, filter data for normal samples. Default is False.
+    Args:
+    - df (pd.DataFrame): The DataFrame containing the embeddings column.
+    - col_name (str): The name of the column containing the embeddings.
 
     Returns:
-    - X (pandas.DataFrame): Feature data (image embeddings) for the machine learning task.
-    - y (pandas.Series): Target data (labels) for the machine learning task.
+    pd.DataFrame: The DataFrame with processed embeddings.
 
-    Example Usage:
-    ```python
-    X, y = load_data(labels_path='data/labels.csv', backbone='dinov2_large', label='diabetic_retinopathy', directory='Embeddings', normal=False)
-    ```
+    Steps:
+    1. Convert the values in the specified column to lists.
+    2. Extract values from lists and create new columns for each element.
+    3. Remove the original embeddings column.
 
-    Note:
-    - This function is designed to load image embeddings and corresponding labels, allowing for data preprocessing and label encoding.
-    - It is suitable for machine learning tasks where you have image features and labels.
-
+    Example:
+    df_processed = process_embeddings(df, 'embeddings')
     """
+    # Step 1: Convert the values in the column to lists
+    df[col_name] = df[col_name].apply(eval)
 
-    # Embeddings
-    embeddings_path = f'{directory}/Embeddings_{backbone}.csv'
-    df = pd.read_csv(embeddings_path)
-    df.rename(columns={'ImageName':'image_id'}, inplace=True)
-    df['image_id'] = df['image_id'].apply(lambda x: x.replace('.jpg',''))
-    df['image_id'] = df['image_id'].apply(lambda x: x.replace('.JPG',''))
-    df['image_id'] = df['image_id'].apply(lambda x: x.replace('.png',''))
-    df['image_id'] = df['image_id'].apply(lambda x: x.replace('.jpeg',''))
-    
-    if (label == 'DR_ICDR') and (dataset_name.lower() == 'eyepacs'):
-        label = 'level'
-    elif (label == 'DR_ICDR') and ('messidor' in dataset_name.lower()):
-        label = 'diagnosis'
-    
-    if dataset_name == 'BRSET':
-        # Labels
-        brset_df = pd.read_csv(labels_path)
-        if normal:
-            brset_df = brset_df[brset_df['DR_ICDR'] == 0]
-            
-    elif ('messidor' in dataset_name.lower()):
-        # Labels
-        brset_df = pd.read_csv(labels_path)
-        brset_df['image_id'] = brset_df['image_id'].apply(lambda x: x.replace('.jpg',''))
-        brset_df['image_id'] = brset_df['image_id'].apply(lambda x: x.replace('.JPG',''))
-        brset_df['image_id'] = brset_df['image_id'].apply(lambda x: x.replace('.png',''))
-        brset_df['image_id'] = brset_df['image_id'].apply(lambda x: x.replace('.jpeg',''))
-        
-    elif dataset_name.lower() == 'eyepacs':
-        # Labels
-        brset_df = pd.read_csv(labels_path)
-        brset_df.rename(columns={'image':'image_id'}, inplace=True)
-        brset_df['image_id'] = brset_df['image_id'].apply(lambda x: x.replace('.jpg',''))
-        brset_df['image_id'] = brset_df['image_id'].apply(lambda x: x.replace('.JPG',''))
-        brset_df['image_id'] = brset_df['image_id'].apply(lambda x: x.replace('.png',''))
-        brset_df['image_id'] = brset_df['image_id'].apply(lambda x: x.replace('.jpeg',''))
-        
+    # Step 2-4: Extract values from lists and create new columns
+    embeddings_df = pd.DataFrame(df[col_name].to_list(), columns=[f"text_{i+1}" for i in range(df[col_name].str.len().max())])
+    df = pd.concat([df, embeddings_df], axis=1)
 
-    # Merge
-    df = brset_df.merge(df, on='image_id')
-    
-    y = df[label]
-    X = df.iloc[:, brset_df.shape[1]:]
-    
-    if label in ['DR_ICDR', 'diagnosis', 'level']:
-        if DR_ICDR_3:
-            # 0: Normal = 0
-            # 1, 2, 3 Non-proliferative = 1
-            # 4 Proliferative = 2
-            y = y.apply(lambda x: 1 if x in (1, 2, 3) else (2 if x == 4 else 0))
-        else:
-            pass
-    
+    # Step 5: Remove the original "embeddings" column
+    df = df.drop(columns=[col_name])
 
-    if dataset_name == 'BRSET':        
-        if label == 'diabetes':
-            y = y.apply(lambda x: 1 if x == 'yes' else 0)
+    return df
 
-        if label == 'patient_sex':
-            y = y.apply(lambda x: 0 if x == 2 else 1)
-    
-    return X, y
-
-
-def split_dataset(X, y, test_size=0.3, random_state=1, plot=True):
+def rename_image_embeddings(df):
     """
-    Split a dataset into training and testing sets and optionally visualize class distribution.
+    Rename columns in a DataFrame for image embeddings.
 
-    This function takes feature data (X) and corresponding labels (y) and splits them into training and testing sets using the
-    train_test_split function from scikit-learn. It also provides an option to visualize the class distribution in both sets.
-
-    Parameters:
-    - X (numpy.ndarray or pandas.DataFrame): The feature data to be split.
-    - y (numpy.ndarray or pandas.Series): The corresponding labels for the feature data.
-    - test_size (float, optional): The proportion of the dataset to include in the test split (default is 0.3).
-    - random_state (int, optional): The random seed for reproducible splitting (default is 1).
-    - plot (bool, optional): Whether to plot class distribution in training and test sets (default is True).
+    Args:
+    - df (pd.DataFrame): The DataFrame containing columns to be renamed.
 
     Returns:
-    - X_train (numpy.ndarray or pandas.DataFrame): The feature data for the training set.
-    - X_test (numpy.ndarray or pandas.DataFrame): The feature data for the test set.
-    - y_train (numpy.ndarray or pandas.Series): The labels for the training set.
-    - y_test (numpy.ndarray or pandas.Series): The labels for the test set.
+    pd.DataFrame: The DataFrame with renamed columns.
 
-    Example Usage:
-    ```python
-    X_train, X_test, y_train, y_test = split_dataset(X, y, test_size=0.2, random_state=42, plot=True)
-    ```
-
-    Note:
-    - The function uses scikit-learn's train_test_split to split the data into training and test sets.
-    - If the 'plot' parameter is set to True, class distribution bar plots for both sets are displayed.
-
-    Dependencies:
-    - numpy or pandas for feature data and labels
-    - scikit-learn (train_test_split) for data splitting
-    - matplotlib for data visualization (if 'plot' is True)
+    Example:
+    df_renamed = rename_image_embeddings(df)
     """
-    
-    # Split the data into training and testing sets
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=random_state)
-    
-    print(f"Training set size is: {len(X_train)} rows and {X_train.shape[1]} columns")
-    print(f"Test set size is: {len(X_test)} rows and {X_test.shape[1]} columns")
-    
-    if plot:
+    df.columns = [f'image_{int(col)}' if col.isdigit() else col for col in df.columns]
 
-        # Calculate class distribution in the training and test sets
-        train_class_counts = np.bincount(y_train)
-        test_class_counts = np.bincount(y_test)
+    return df
 
-        # Get the unique class labels
-        unique_labels = np.unique(np.concatenate((y_train, y_test)))
-
-        # Create bar plots to visualize class distribution
-        plt.figure(figsize=(10, 5))
-        plt.subplot(1, 2, 1)
-        plt.bar(unique_labels, train_class_counts)
-        plt.title("Class Distribution in Training Set")
-        plt.xlabel("Class Label")
-        plt.ylabel("Count")
-        plt.xticks(unique_labels)
-
-        plt.subplot(1, 2, 2)
-        plt.bar(unique_labels, test_class_counts)
-        plt.title("Class Distribution in Test Set")
-        plt.xlabel("Class Label")
-        plt.ylabel("Count")
-        plt.xticks(unique_labels)
-
-        plt.tight_layout()
-        plt.show()
-    
-    return X_train, X_test, y_train, y_test
-
-
-def visualize_embeddings(X_train, X_test, y_train, y_test, plot_type='2D', method='UMAP'): 
+# Preprocess and merge the dataframes
+def preprocess_data(text_data, image_data, text_id="image_id", image_id="ImageName", embeddings_col = 'embeddings'):
     """
-    Visualize high-dimensional data embeddings in 2D or 3D space using various dimensionality reduction techniques.
+    Preprocess and merge text and image dataframes.
 
-    Parameters:
-    - X_train (array-like): Training data embeddings or feature vectors.
-    - X_test (array-like): Test data embeddings or feature vectors.
-    - y_train (array-like): Labels or target values for the training data.
-    - y_test (array-like): Labels or target values for the test data.
-    - plot_type (str, optional): The type of visualization, either '2D' or '3D'. Default is '2D'.
-    - method (str, optional): The dimensionality reduction technique to use ('PCA', 't-SNE', or 'UMAP'). Default is 'UMAP'.
+    Args:
+    - text_data (pd.DataFrame): DataFrame containing text data.
+    - image_data (pd.DataFrame): DataFrame containing image data.
+    - text_id (str): Column name for text data identifier.
+    - image_id (str): Column name for image data identifier.
+    - embeddings_col (str): Column name for embeddings data.
 
     Returns:
-    None
+    pd.DataFrame: Merged and preprocessed DataFrame.
 
-    Example Usage:
-    ```python
-    visualize_embeddings(X_train, X_test, y_train, y_test, plot_type='2D', method='UMAP')
-    ```
+    Steps:
+    1. Process text and image embeddings.
+    2. Convert image_id and text_id values to integers.
+    3. Merge dataframes using image_id.
+    4. Drop unnecessary columns.
 
-    Note:
-    - This function allows you to visualize high-dimensional data embeddings in 2D or 3D space using different dimensionality reduction methods.
-    - It is particularly useful for understanding the structure and patterns within the data.
-    - You can choose the type of visualization ('2D' or '3D') and the dimensionality reduction technique ('PCA', 't-SNE', or 'UMAP').
-
-    Dependencies:
-    - NumPy
-    - Scikit-learn (for PCA and t-SNE)
-    - UMAP-learn (for UMAP)
-    - Plotly (for interactive visualization)
-
-    For more information on the dimensionality reduction techniques and their parameters, refer to the respective documentation.
+    Example:
+    merged_df = preprocess_data(text_df, image_df)
     """
+    text_data = process_embeddings(text_data, embeddings_col)
+    image_data = rename_image_embeddings(image_data)
+    
+    # Remove file extension from image_id
+    if text_data[text_id].dtype != int:
+        text_data[text_id] = text_data[text_id].apply(lambda x: int(x.split('.')[0]) if x.split('.')[0].isdigit() else x.split('.')[0])
+    if image_data[image_id].dtype != int:
+        image_data[image_id] = image_data[image_id].apply(lambda x: int(x.split('.')[0]) if x.split('.')[0].isdigit() else x.split('.')[0])
+    #text_data[text_id] = text_data[text_id].apply(lambda x: x.split('.')[0])
+    #image_data[image_id] = image_data[image_id].apply(lambda x: x.split('.')[0])
 
+    # Merge dataframes using image_id
+    df = pd.merge(text_data, image_data, left_on=text_id, right_on=image_id)
 
-    perplexity = 10
+    # Drop unnecessary columns
+    df.drop([image_id, text_id], axis=1, inplace=True)
 
-    if plot_type == '3D':
-        if method == 'PCA':
-            # Apply PCA to reduce the dimensionality of the embeddings
-            red = PCA(n_components=3, random_state=42).fit(X_train)
-            reduced_embeddings = red.transform(X_test)
-        elif method == 't-SNE':
-            # Apply t-SNE to reduce the dimensionality of the embeddings
-            red = TSNE(n_components=3, perplexity=perplexity, random_state=42).fit(X_train)
-            reduced_embeddings = red.transform(X_test)
-        elif method == 'UMAP':
-            # Apply UMAP to reduce the dimensionality of the embeddings
-            red = UMAP(n_components=3, random_state=42).fit(X_train)
-            reduced_embeddings = red.transform(X_test)
-            
-        # Combine df1 with the UMAP results
-        df_reduced = pd.DataFrame(reduced_embeddings, columns=['col1', 'col2', 'col3'])
-        # Combine df_reduced with y
-        df_reduced['Class'] = y_test.reset_index().iloc[:, 1]
+    return df
+
+######### Datasets Preparation #########
+
+# Function to split the data into train and test
+def split_data(df):
+    """
+    Split a DataFrame into train and test sets based on the 'split' column.
+
+    Args:
+    - df (pd.DataFrame): The DataFrame to be split.
+
+    Returns:
+    pd.DataFrame: Train set.
+    pd.DataFrame: Test set.
+
+    Example:
+    train_set, test_set = split_data(df)
+    """
+    train_df = df[df['split'] == 'train']
+    test_df = df[df['split'] == 'test']
+    
+    print("Train Shape:", train_df.shape)
+    print("Test Shape:", test_df.shape)
+    return train_df, test_df
+
+# Function to process text labels and one-hot encode them
+def process_labels(df, col='answer', mlb=None, train_columns=None):
+    """
+    Process text labels and perform one-hot encoding using MultiLabelBinarizer.
+
+    Args:
+    - df (pd.DataFrame): The DataFrame containing the labels.
+    - col (str): The column name containing the labels.
+    - mlb (sklearn.preprocessing.MultiLabelBinarizer): The MultiLabelBinarizer object.
+    - train_columns (list): List of columns from the training set.
+
+    Returns:
+    pd.DataFrame: One-hot encoded labels.
+    sklearn.preprocessing.MultiLabelBinarizer: MultiLabelBinarizer object.
+    list: List of columns from the training set.
+
+    Example:
+    one_hot_labels, mlb, train_columns = process_labels(df, col='answer')
+    """
+    if mlb is None:
+        mlb = MultiLabelBinarizer()
+        labels = df[col].apply(lambda x: set(x.split(', ')))
+        one_hot_labels = pd.DataFrame(mlb.fit_transform(labels), columns=mlb.classes_)
+        # Save the columns from the training set
+        train_columns = one_hot_labels.columns
         
-        # Create 2D and 3D scatter plots with Plotly
-        fig_3d = px.scatter_3d(df_reduced, x='col1', y='col2', z='col3', color='Class', title='3D UMAP')
+        return one_hot_labels, mlb, train_columns
 
     else:
-        if method == 'PCA':
-            # Apply PCA to reduce the dimensionality of the embeddings
-            red = PCA(n_components=2, random_state=42).fit(X_train)
-            reduced_embeddings = red.transform(X_test)
-        elif method == 't-SNE':
-            # Apply t-SNE to reduce the dimensionality of the embeddings
-            red = TSNE(n_components=2, perplexity=perplexity, random_state=42).fit(X_train)
-            reduced_embeddings = red.transform(X_test)
-        elif method == 'UMAP':
-            # Apply UMAP to reduce the dimensionality of the embeddings
-            red = UMAP(n_components=2, random_state=42).fit(X_train)
-            reduced_embeddings = red.transform(X_test)
+        labels = df[col].apply(lambda x: set(x.split(', ')))
+        one_hot_labels = pd.DataFrame(mlb.transform(labels), columns=train_columns)
         
-        # Combine df1 with the results
-        df_reduced = pd.DataFrame(reduced_embeddings, columns=['col1', 'col2'])
-        
-        
-        # Combine df_reduced with y
-        df_reduced['Class'] = y_test.reset_index().iloc[:, 1]
+        return one_hot_labels
 
-        # Create 2D and 3D scatter plots with Plotly
-        fig = px.scatter(df_reduced, x='col1', y='col2', color='Class', title='2D UMAP')
     
-    # Set plot layout
-    fig.update_layout(
-        title=f"Embeddings - {method} {plot_type} Visualization",
-        scene=dict(
-        )
-    )
-    
-    # Show the interactive plot
-    fig.show()
+# Custom Dataset class for PyTorch
+class VQADataset(Dataset):
+    """
+    Custom PyTorch Dataset for VQA (Visual Question Answering).
 
-def test_model(X_test, y_test, model):
+    Args:
+    - df (pd.DataFrame): The DataFrame containing the dataset.
+    - text_cols (list): List of column names containing text data.
+    - image_cols (list): List of column names containing image data.
+    - label_col (str): Column name containing labels.
+    - mlb (sklearn.preprocessing.MultiLabelBinarizer): MultiLabelBinarizer object.
+    - train_columns (list): List of columns from the training set.
+
+    Attributes:
+    - text_data (np.ndarray): Array of text data.
+    - image_data (np.ndarray): Array of image data.
+    - mlb (sklearn.preprocessing.MultiLabelBinarizer): MultiLabelBinarizer object.
+    - train_columns (list): List of columns from the training set.
+    - labels (np.ndarray): Array of one-hot encoded labels.
+
+    Methods:
+    - __len__(): Returns the length of the dataset.
+    - __getitem__(idx): Returns a dictionary with 'text', 'image', and 'labels'.
+
+    Example:
+    dataset = VQADataset(df, text_cols=['text1', 'text2'], image_cols=['image1', 'image2'], label_col='answer', mlb=mlb, train_columns=train_columns)
+    """
+    def __init__(self, df, text_cols, image_cols, label_col, mlb, train_columns):
+        self.text_data = df[text_cols].values
+        self.image_data = df[image_cols].values
+        self.mlb = mlb
+        self.train_columns = train_columns
+        self.labels = process_labels(df, col=label_col, mlb=mlb, train_columns=train_columns).values
+
+    def __len__(self):
+        return len(self.labels)
+
+    def __getitem__(self, idx):
+        return {
+            'text': torch.FloatTensor(self.text_data[idx]),
+            'image': torch.FloatTensor(self.image_data[idx]),
+            'labels': torch.FloatTensor(self.labels[idx])
+        }
+
+
+######### Models and Evaluation #########
+
+# Early Fusion Model
+class EarlyFusionModel(nn.Module):
+    """
+    Early Fusion Model for combining text and image features.
+
+    Args:
+    - text_input_size (int): Dimension of the text input.
+    - image_input_size (int): Dimension of the image input.
+    - output_size (int): Dimension of the output.
+    - hidden (int or list): Hidden layer(s) size(s) for the model.
+
+    Attributes:
+    - fc1 (nn.Sequential): First fully connected layer(s).
+    - fc2 (nn.Linear): Second fully connected layer.
+
+    Methods:
+    - forward(text, image): Forward pass of the model.
+
+    Example:
+    model = EarlyFusionModel(text_input_size=512, image_input_size=256, output_size=10, hidden=[128, 64])
+    """
+    def __init__(self, text_input_size, image_input_size, output_size, hidden=[128]):
+        super(EarlyFusionModel, self).__init__()
+        
+        output_dim = text_input_size + image_input_size
+        
+        # Initialize layers as an empty list
+        layers = []
+        
+        # Add the linear layer and ReLU activation if 'hidden' is an integer
+        if isinstance(hidden, int):
+            layers.append(nn.Linear(output_dim, hidden))
+            layers.append(nn.ReLU())
+            #layers.append(nn.Dropout(p=0.2))
+
+            output_dim = hidden
+            
+        # Add the linear layer and ReLU activation for each element in 'hidden' if it's a list
+        elif isinstance(hidden, list):
+            for h in hidden:
+                layers.append(nn.Linear(output_dim, h))
+                layers.append(nn.ReLU())
+                #layers.append(nn.Dropout(p=0.2))
+                #layers.append(nn.BatchNorm1d(h))
+                output_dim = h
+        
+        self.fc1 = nn.Sequential(*layers)
+
+        
+        #self.fc1 = nn.Linear(text_input_size + image_input_size, hidden)
+        
+        self.fc2 = nn.Linear(output_dim, output_size)
+
+    def forward(self, text, image):
+        x = torch.cat((text, image), dim=1)
+        #x = torch.relu(self.fc1(x))
+        x = self.fc1(x)
+        x = self.fc2(x)
+        return x
+
+# Late Fusion Model
+class LateFusionModel(nn.Module):
+    """
+    Late Fusion Model for combining text and image features.
+
+    Args:
+    - text_input_size (int): Dimension of the text input.
+    - image_input_size (int): Dimension of the image input.
+    - output_size (int): Dimension of the output.
+    - hidden_images (int or list): Hidden layer(s) size(s) for the image features.
+    - hidden_text (int or list): Hidden layer(s) size(s) for the text features.
+
+    Attributes:
+    - text_fc (nn.Sequential): Fully connected layers for text features.
+    - image_fc (nn.Sequential): Fully connected layers for image features.
+    - fc2 (nn.Linear): Second fully connected layer.
+
+    Methods:
+    - forward(text, image): Forward pass of the model.
+
+    Example:
+    model = LateFusionModel(text_input_size=512, image_input_size=256, output_size=10, hidden_images=[64], hidden_text=[64])
+    """
+    def __init__(self, text_input_size, image_input_size, output_size, hidden_images=[64], hidden_text=[64]):
+        super(LateFusionModel, self).__init__()
+        
+        self.text_fc, out_text = self._get_layers(text_input_size, hidden_text)
+        self.image_fc, out_images = self._get_layers(image_input_size, hidden_images)
+        
+        #self.text_fc = nn.Linear(text_input_size, hidden_text)
+        #self.image_fc = nn.Linear(image_input_size, hidden_images)
+        
+        
+        self.fc2 = nn.Linear(out_text + out_images, output_size)
+        
+    def _get_layers(self, embed_dim, hidden, p=0.2):
+        # Initialize layers as an empty list
+        layers = []
+        output_dim = embed_dim
+        
+        # Add the linear layer and ReLU activation if 'hidden' is an integer
+        if isinstance(hidden, int):
+            layers.append(nn.Linear(output_dim, hidden))
+            layers.append(nn.ReLU())
+            #layers.append(nn.Dropout(p=p))
+
+            output_dim = hidden
+            
+        # Add the linear layer and ReLU activation for each element in 'hidden' if it's a list
+        elif isinstance(hidden, list):
+            for h in hidden:
+                layers.append(nn.Linear(output_dim, h))
+                layers.append(nn.ReLU())
+                #layers.append(nn.Dropout(p=p))
+                #layers.append(nn.BatchNorm1d(h))
+                output_dim = h
+        
+        fc = nn.Sequential(*layers)
+        
+        return fc, output_dim
+
+    def forward(self, text, image):
+        text_output = self.text_fc(text)
+        image_output = self.image_fc(image)
+        #text_output = torch.relu(self.text_fc(text))
+        #image_output = torch.relu(self.image_fc(image))
+        x = torch.cat((text_output, image_output), dim=1)
+        x = self.fc2(x)
+        return x
+
+
+    
+def test_model(y_test, y_pred):
     """
     Evaluates the model on the training and test data respectively
     1. Predictions on test data
@@ -317,29 +369,34 @@ def test_model(X_test, y_test, model):
     4. ROC curve
 
     Inputs:
-    X_test: numpy array with test features
     y_test: numpy array with test labels
-    model: trained model
+    y_pred: numpy array with predicted test labels
     """
-
-    # Predictions on test data
-    y_pred = model.predict(X_test)
+    
+    y_test = np.argmax(y_test, axis=1)
+    y_pred = np.argmax(y_pred, axis=1)
 
     # Confusion matrix
     # Create a confusion matrix of the test predictions
     cm = confusion_matrix(y_test, y_pred)
     # create heatmap
-    sns.heatmap(cm, annot=True, cmap='Blues', fmt='g')
-    # set plot labels
+    # Set the size of the plot
+    fig, ax = plt.subplots(figsize=(15, 15))
+
+    # Create heatmap
+    sns.heatmap(cm, annot=True, cmap='Blues', fmt='g', ax=ax)
+
+    # Set plot labels
     plt.xlabel('Predicted')
     plt.ylabel('True')
     plt.title('Confusion Matrix')
-    # display plot
+
+    # Display plot
     plt.show()
 
     #create ROC curve
     from sklearn.preprocessing import LabelBinarizer
-    fig, ax = plt.subplots(figsize=(6, 6))
+    fig, ax = plt.subplots(figsize=(15, 15))
 
     label_binarizer = LabelBinarizer().fit(y_test)
     y_onehot_test = label_binarizer.transform(y_test)
@@ -381,7 +438,7 @@ def test_model(X_test, y_test, model):
         plt.xlabel("False Positive Rate")
         plt.ylabel("True Positive Rate")
         plt.title("Extension of Receiver Operating Characteristic\nto One-vs-Rest multiclass")
-        plt.legend()
+        plt.legend(loc='upper left', bbox_to_anchor=(1, 1), bbox_transform=plt.gcf().transFigure)
         plt.show()
         
     # Classification report
@@ -396,58 +453,255 @@ def test_model(X_test, y_test, model):
     f1 = f1_score(y_test, y_pred, average='weighted')  # Use weighted average for multi-class F1-score
 
     return accuracy, precision, recall, f1
-
-
-def train_and_evaluate_model(X_train, X_test, y_train, y_test, models=None):
+    
+    
+def train_early_fusion(train_loader, test_loader, text_input_size, image_input_size, output_size, num_epochs=5, multilabel=True, report=False):
     """
-    Trains and evaluates multiple classification models
-    The list of models to train can be specified, otherwise a default list is used
-    Default list: 
-    - Random Forest
-    -Decision Tree
-    -Logistic Regression
-    -KNN
-    -SVM
-    
-    Inputs:
-    X_train: numpy array with training features
-    X_test: numpy array with test features
-    y_train: numpy array with training labels
-    y_test: numpy array with test labels
-    models: list of tuples with model name and model object
-    train: boolean to indicate whether to train the models or not
+    Train an Early Fusion Model.
 
-    Output:
-    models: list of trained models
+    Args:
+    - train_loader (DataLoader): DataLoader for the training set.
+    - test_loader (DataLoader): DataLoader for the testing set.
+    - text_input_size (int): Dimension of the text input.
+    - image_input_size (int): Dimension of the image input.
+    - output_size (int): Dimension of the output.
+    - num_epochs (int): Number of training epochs.
+    - multilabel (bool): Flag for multilabel classification.
+    - report (bool): Flag to generate a classification report, confusion matrix, and ROC curve.
+
+    Example:
+    train_early_fusion(train_loader, test_loader, text_input_size=512, image_input_size=256, output_size=10, num_epochs=5, multilabel=True)
     """
-    
-    visualize_embeddings(X_train, X_test, y_train, y_test, plot_type='2D', method='UMAP')
-    
-    # Train and evaluate multiple classification models
-    if not(models):
-        models = [
-            ('Random Forest', RandomForestClassifier()),
-            ('Decision Tree', DecisionTreeClassifier()),
-            ('Logistic Regression', LogisticRegression()),
-            ('KNN', KNeighborsClassifier()),
-            ('SVM', SVC())
-        ]
+    model = LateFusionModel(text_input_size=text_input_size, image_input_size=image_input_size, output_size=output_size)
 
-    for name, model in models:
+    if multilabel:
+        criterion = nn.BCEWithLogitsLoss()
+    else:
+        criterion = nn.CrossEntropyLoss()
         
-        print('#'*20, f' {name} ', '#'*20)
-        
-        # Train the model
-        model.fit(X_train, y_train)
-        
-        # Make predictions on the testing set
-        accuracy, precision, recall, f1 = test_model(X_test, y_test, model)
-        
-        #print(f"Accuracy: {accuracy:.2f}")
-        #print(f"Precision: {precision:.2f}")
-        #print(f"Recall: {recall:.2f}")
-        #print(f"F1 Score: {f1:.2f}")
-        
-        #print('#'*80)
-        
-    return models
+    optimizer = optim.Adam(model.parameters(), lr=0.001)
+
+    train_accuracy_list = []
+    test_accuracy_list = []
+
+    for epoch in range(num_epochs):
+        model.train()
+        for batch in train_loader:
+            text, image, labels = batch['text'], batch['image'], batch['labels']
+            optimizer.zero_grad()
+            outputs = model(text, image)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+
+        model.eval()
+        with torch.no_grad():
+            y_true, y_pred = [], []
+            for batch in test_loader:
+                text, image, labels = batch['text'], batch['image'], batch['labels']
+                outputs = model(text, image)
+                if multilabel:
+                    preds = torch.sigmoid(outputs)
+                else:
+                    preds = torch.softmax(outputs, dim=1)
+                y_true.extend(labels.numpy())
+                y_pred.extend(preds.numpy())
+
+            y_true, y_pred = np.array(y_true), np.array(y_pred)
+            test_accuracy = accuracy_score(y_true, (y_pred > 0.5).astype(int))
+            test_accuracy_list.append(test_accuracy)
+            
+            # Calculate and store train accuracy
+            model.train()
+            with torch.no_grad():
+                train_preds = model(batch['text'], batch['image'])
+                if multilabel:
+                    train_accuracy = accuracy_score(labels.numpy(), (torch.sigmoid(train_preds).numpy() > 0.5).astype(int))
+                else:
+                    train_accuracy = accuracy_score(labels.numpy(), (torch.softmax(train_preds, dim=1).numpy() > 0.5).astype(int))
+                train_accuracy_list.append(train_accuracy)
+
+            print(f"Epoch {epoch + 1}/{num_epochs} - Test Accuracy: {test_accuracy:.4f}")
+
+    # Plot the accuracy
+    #plt.plot(range(1, num_epochs + 1), train_accuracy_list, label='Train Accuracy')
+    plt.plot(range(1, num_epochs + 1), test_accuracy_list, label='Test Accuracy')
+    plt.xlabel('Epoch')
+    plt.ylabel('Accuracy')
+    plt.legend()
+    plt.show()
+    
+    if report:
+        # Evaluate the model using the test_model function after training
+        model.eval()
+        with torch.no_grad():
+            y_true, y_pred = [], []
+            for batch in test_loader:
+                text, image, labels = batch['text'], batch['image'], batch['labels']
+                outputs = model(text, image)
+                preds = torch.softmax(outputs, dim=1)
+                y_true.extend(labels.numpy())
+                y_pred.extend(preds.numpy())
+
+            y_true, y_pred = np.array(y_true), np.array(y_pred)
+            predicted_class_indices = np.argmax(y_pred, axis=1)
+            # Convert the predicted class indices to one-hot encoding
+            y_pred_one_hot = np.eye(y_pred.shape[1])[predicted_class_indices]
+            #test_model(y_true, (y_pred > 0.5).astype(int))
+            test_model(y_true, y_pred_one_hot)
+            
+
+# Function to train late fusion model (similar changes)
+def train_late_fusion(train_loader, test_loader, text_input_size, image_input_size, output_size, num_epochs=5, multilabel=True, report=False):
+    """
+    Train a Late Fusion Model.
+
+    Args:
+    - train_loader (DataLoader): DataLoader for the training set.
+    - test_loader (DataLoader): DataLoader for the testing set.
+    - text_input_size (int): Dimension of the text input.
+    - image_input_size (int): Dimension of the image input.
+    - output_size (int): Dimension of the output.
+    - num_epochs (int): Number of training epochs.
+    - multilabel (bool): Flag for multilabel classification.
+    - report (bool): Flag to generate a classification report, confusion matrix, and ROC curve.
+
+    Example:
+    train_late_fusion(train_loader, test_loader, text_input_size=512, image_input_size=256, output_size=10, num_epochs=5, multilabel=True)
+    """
+    model = LateFusionModel(text_input_size=text_input_size, image_input_size=image_input_size, output_size=output_size)
+    
+    if multilabel:
+        criterion = nn.BCEWithLogitsLoss()
+    else:
+        criterion = nn.CrossEntropyLoss()
+    
+    optimizer = optim.Adam(model.parameters(), lr=0.001)
+
+    train_accuracy_list = []
+    test_accuracy_list = []
+
+    for epoch in range(num_epochs):
+        model.train()
+        for batch in train_loader:
+            text, image, labels = batch['text'], batch['image'], batch['labels']
+            optimizer.zero_grad()
+            outputs = model(text, image)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+
+        model.eval()
+        with torch.no_grad():
+            y_true, y_pred = [], []
+            for batch in test_loader:
+                text, image, labels = batch['text'], batch['image'], batch['labels']
+                outputs = model(text, image)
+                if multilabel:
+                    preds = torch.sigmoid(outputs)
+                else:
+                    preds = torch.softmax(outputs, dim=1)
+                y_true.extend(labels.numpy())
+                y_pred.extend(preds.numpy())
+
+            y_true, y_pred = np.array(y_true), np.array(y_pred)
+            test_accuracy = accuracy_score(y_true, (y_pred > 0.5).astype(int))
+            test_accuracy_list.append(test_accuracy)
+            
+            # Calculate and store train accuracy
+            model.train()
+            with torch.no_grad():
+                train_preds = model(batch['text'], batch['image'])
+                if multilabel:
+                    train_accuracy = accuracy_score(labels.numpy(), (torch.sigmoid(train_preds).numpy() > 0.5).astype(int))
+                else:
+                    train_accuracy = accuracy_score(labels.numpy(), (torch.softmax(train_preds, dim=1).numpy() > 0.5).astype(int))
+                train_accuracy_list.append(train_accuracy)
+
+            print(f"Epoch {epoch + 1}/{num_epochs} - Test Accuracy: {test_accuracy:.4f}")
+
+    # Plot the accuracy
+    #plt.plot(range(1, num_epochs + 1), train_accuracy_list, label='Train Accuracy')
+    plt.plot(range(1, num_epochs + 1), test_accuracy_list, label='Test Accuracy')
+    plt.xlabel('Epoch')
+    plt.ylabel('Accuracy')
+    plt.legend()
+    plt.show()
+    
+    if report:
+        # Evaluate the model using the test_model function after training
+        model.eval()
+        with torch.no_grad():
+            y_true, y_pred = [], []
+            for batch in test_loader:
+                text, image, labels = batch['text'], batch['image'], batch['labels']
+                outputs = model(text, image)
+                preds = torch.softmax(outputs, dim=1)
+                y_true.extend(labels.numpy())
+                y_pred.extend(preds.numpy())
+                
+            y_true, y_pred = np.array(y_true), np.array(y_pred)
+            
+            predicted_class_indices = np.argmax(y_pred, axis=1)
+            # Convert the predicted class indices to one-hot encoding
+            y_pred_one_hot = np.eye(y_pred.shape[1])[predicted_class_indices]
+            
+            test_model(y_true, y_pred_one_hot)
+
+# Function to evaluate classic ML model
+def evaluate_classic_ml_model(model_name, y_true, y_pred, train_columns):
+    """
+    Evaluate the performance of classic ML models.
+
+    Args:
+    - model_name (str): Name of the ML model.
+    - y_true (np.ndarray): True labels.
+    - y_pred (np.ndarray): Predicted labels.
+    - train_columns (list): List of columns from the training set.
+
+    Example:
+    evaluate_classic_ml_model("Random Forest", y_test, rf_pred, train_columns)
+    """
+    accuracy = accuracy_score(y_true, y_pred)
+    f1 = f1_score(y_true, y_pred, average='micro')
+
+    print(f"{model_name} - Test Accuracy: {accuracy}")
+    print(f"{model_name} - Test F1 Score: {f1}")
+    
+def train_classic_ml_models(train_data, test_data, train_labels, test_labels, train_columns):
+    """
+    Train and evaluate classic ML models.
+
+    Args:
+    - train_data (pd.DataFrame): DataFrame containing training data.
+    - test_data (pd.DataFrame): DataFrame containing testing data.
+    - train_labels (np.ndarray): Labels for the training set.
+    - test_labels (np.ndarray): Labels for the testing set.
+    - train_columns (list): List of columns from the training set.
+
+    Example:
+    train_classic_ml_models(train_data, test_data, train_labels, test_labels, train_columns)
+    """
+    # Separate features and labels
+    X_train, y_train = train_data[text_columns + image_columns], train_labels
+    X_test, y_test = test_data[text_columns + image_columns], test_labels
+
+    # Random Forest
+    rf_model = OneVsRestClassifier(RandomForestClassifier())
+    rf_model.fit(X_train, y_train)
+    rf_pred = rf_model.predict(X_test)
+
+    # Logistic Regression
+    lr_model = OneVsRestClassifier(LogisticRegression())
+    lr_model.fit(X_train, y_train)
+    lr_pred = lr_model.predict(X_test)
+
+    # SVM
+    svm_model = OneVsRestClassifier(SVC())
+    svm_model.fit(X_train, y_train)
+    svm_pred = svm_model.predict(X_test)
+
+    # Evaluate models
+    evaluate_classic_ml_model("Random Forest", y_test, rf_pred, train_columns)
+    evaluate_classic_ml_model("Logistic Regression", y_test, lr_pred, train_columns)
+    evaluate_classic_ml_model("SVM", y_test, svm_pred, train_columns)
