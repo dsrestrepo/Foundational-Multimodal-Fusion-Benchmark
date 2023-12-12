@@ -378,21 +378,17 @@ def test_model(y_test, y_pred):
 
     # Confusion matrix
     # Create a confusion matrix of the test predictions
-    cm = confusion_matrix(y_test, y_pred)
+    #cm = confusion_matrix(y_test, y_pred)
     # create heatmap
     # Set the size of the plot
-    fig, ax = plt.subplots(figsize=(15, 15))
-
-    # Create heatmap
-    sns.heatmap(cm, annot=True, cmap='Blues', fmt='g', ax=ax)
-
+    #fig, ax = plt.subplots(figsize=(15, 15))
+    #sns.heatmap(cm, annot=True, cmap='Blues', fmt='g', ax=ax)
     # Set plot labels
-    plt.xlabel('Predicted')
-    plt.ylabel('True')
-    plt.title('Confusion Matrix')
-
+    #plt.xlabel('Predicted')
+    #plt.ylabel('True')
+    #plt.title('Confusion Matrix')
     # Display plot
-    plt.show()
+    #plt.show()
 
     #create ROC curve
     from sklearn.preprocessing import LabelBinarizer
