@@ -441,11 +441,16 @@ def create_stratified_subset_fakeddit(root_path, subset_size, verify=False):
     test_df = test_df[test_df['image_url'].notna()]
     val_df = pd.read_csv(val_file, sep='\t')
     val_df = val_df[val_df['image_url'].notna()]
-
-    # Stratified sampling based on '2_way_label'
-    train_subset, _ = train_test_split(train_df, test_size=1 - subset_size, stratify=train_df['2_way_label'])
-    test_subset, _ = train_test_split(test_df, test_size=1 - subset_size, stratify=test_df['2_way_label'])
-    val_subset, _ = train_test_split(val_df, test_size=1 - subset_size, stratify=val_df['2_way_label'])
+    
+    if not(subset_size) or (subset_size >= 1) or (subset_size <= 0):
+        train_subset = train_df
+        test_subset = test_df
+        val_subset = val_df
+    else:
+        # Stratified sampling based on '2_way_label'
+        train_subset, _ = train_test_split(train_df, test_size=1 - subset_size, stratify=train_df['2_way_label'])
+        test_subset, _ = train_test_split(test_df, test_size=1 - subset_size, stratify=test_df['2_way_label'])
+        val_subset, _ = train_test_split(val_df, test_size=1 - subset_size, stratify=val_df['2_way_label'])
 
     # Add a 'split' column to indicate the original file
     train_subset['split'] = 'train'
