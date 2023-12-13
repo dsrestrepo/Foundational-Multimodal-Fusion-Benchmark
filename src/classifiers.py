@@ -172,7 +172,7 @@ def process_labels(df, col='answer', mlb=None, train_columns=None):
         else:
             labels = df[col].apply(lambda x: set(x.split(', ')))
         
-        if df[col].dtype == int and (pd.unique(df[col]) == 2):
+        if df[col].dtype == int and (len(df[col].unique()) == 2):
             train_columns = col
             one_hot_labels = label
         else:
@@ -188,7 +188,7 @@ def process_labels(df, col='answer', mlb=None, train_columns=None):
         else:
             labels = df[col].apply(lambda x: set(x.split(', ')))
         
-        if df[col].dtype == int and (pd.unique(df[col]) == 2):
+        if df[col].dtype == int and (len(df[col].unique()) == 2):
             one_hot_labels = label
         else:
             one_hot_labels = pd.DataFrame(mlb.transform(labels), columns=train_columns)
@@ -229,6 +229,10 @@ class VQADataset(Dataset):
         self.mlb = mlb
         self.train_columns = train_columns
         self.labels = process_labels(df, col=label_col, mlb=mlb, train_columns=train_columns).values
+        #print(self.labels.shape)
+        if len(self.labels.shape) == 1:
+            self.labels = np.expand_dims(self.labels, axis=1)
+
 
     def __len__(self):
         return len(self.labels)
@@ -388,22 +392,28 @@ def test_model(y_test, y_pred):
     y_pred: numpy array with predicted test labels
     """
     
-    y_test = np.argmax(y_test, axis=1)
-    y_pred = np.argmax(y_pred, axis=1)
-
+    plot_matrix = False
+    if y_pred.shape[1] < 102:
+        plot_matrix = True
+        
+    
+    if y_pred.shape[1] > 1:
+        y_test = np.argmax(y_test, axis=1)
+        y_pred = np.argmax(y_pred, axis=1)
+    
     # Confusion matrix
     # Create a confusion matrix of the test predictions
-    #cm = confusion_matrix(y_test, y_pred)
+    cm = confusion_matrix(y_test, y_pred)
     # create heatmap
     # Set the size of the plot
-    #fig, ax = plt.subplots(figsize=(15, 15))
-    #sns.heatmap(cm, annot=True, cmap='Blues', fmt='g', ax=ax)
+    fig, ax = plt.subplots(figsize=(15, 15))
+    sns.heatmap(cm, annot=True, cmap='Blues', fmt='g', ax=ax)
     # Set plot labels
-    #plt.xlabel('Predicted')
-    #plt.ylabel('True')
-    #plt.title('Confusion Matrix')
+    plt.xlabel('Predicted')
+    plt.ylabel('True')
+    plt.title('Confusion Matrix')
     # Display plot
-    #plt.show()
+    plt.show()
 
     #create ROC curve
     from sklearn.preprocessing import LabelBinarizer
@@ -485,7 +495,7 @@ def train_early_fusion(train_loader, test_loader, text_input_size, image_input_s
     """
     model = LateFusionModel(text_input_size=text_input_size, image_input_size=image_input_size, output_size=output_size)
 
-    if multilabel:
+    if multilabel or (output_size == 1):
         criterion = nn.BCEWithLogitsLoss()
     else:
         criterion = nn.CrossEntropyLoss()
@@ -511,7 +521,7 @@ def train_early_fusion(train_loader, test_loader, text_input_size, image_input_s
             for batch in test_loader:
                 text, image, labels = batch['text'], batch['image'], batch['labels']
                 outputs = model(text, image)
-                if multilabel:
+                if multilabel or (output_size == 1):
                     preds = torch.sigmoid(outputs)
                 else:
                     preds = torch.softmax(outputs, dim=1)
@@ -526,7 +536,7 @@ def train_early_fusion(train_loader, test_loader, text_input_size, image_input_s
             model.train()
             with torch.no_grad():
                 train_preds = model(batch['text'], batch['image'])
-                if multilabel:
+                if multilabel or (output_size == 1):
                     train_accuracy = accuracy_score(labels.numpy(), (torch.sigmoid(train_preds).numpy() > 0.5).astype(int))
                 else:
                     train_accuracy = accuracy_score(labels.numpy(), (torch.softmax(train_preds, dim=1).numpy() > 0.5).astype(int))
@@ -550,15 +560,21 @@ def train_early_fusion(train_loader, test_loader, text_input_size, image_input_s
             for batch in test_loader:
                 text, image, labels = batch['text'], batch['image'], batch['labels']
                 outputs = model(text, image)
-                preds = torch.softmax(outputs, dim=1)
+                if multilabel or (output_size == 1):
+                    preds = torch.sigmoid(outputs)
+                else:
+                    preds = torch.softmax(outputs, dim=1)
                 y_true.extend(labels.numpy())
                 y_pred.extend(preds.numpy())
 
             y_true, y_pred = np.array(y_true), np.array(y_pred)
-            predicted_class_indices = np.argmax(y_pred, axis=1)
-            # Convert the predicted class indices to one-hot encoding
-            y_pred_one_hot = np.eye(y_pred.shape[1])[predicted_class_indices]
-            #test_model(y_true, (y_pred > 0.5).astype(int))
+            if multilabel or (output_size == 1):
+                y_pred_one_hot = (y_pred > 0.5).astype(int)
+            else:
+                predicted_class_indices = np.argmax(y_pred, axis=1)
+                # Convert the predicted class indices to one-hot encoding
+                y_pred_one_hot = np.eye(y_pred.shape[1])[predicted_class_indices]
+                #test_model(y_true, (y_pred > 0.5).astype(int))
             test_model(y_true, y_pred_one_hot)
             
 
@@ -582,7 +598,7 @@ def train_late_fusion(train_loader, test_loader, text_input_size, image_input_si
     """
     model = LateFusionModel(text_input_size=text_input_size, image_input_size=image_input_size, output_size=output_size)
     
-    if multilabel:
+    if multilabel or (output_size == 1):
         criterion = nn.BCEWithLogitsLoss()
     else:
         criterion = nn.CrossEntropyLoss()
@@ -608,7 +624,7 @@ def train_late_fusion(train_loader, test_loader, text_input_size, image_input_si
             for batch in test_loader:
                 text, image, labels = batch['text'], batch['image'], batch['labels']
                 outputs = model(text, image)
-                if multilabel:
+                if multilabel or (output_size == 1):
                     preds = torch.sigmoid(outputs)
                 else:
                     preds = torch.softmax(outputs, dim=1)
@@ -623,7 +639,7 @@ def train_late_fusion(train_loader, test_loader, text_input_size, image_input_si
             model.train()
             with torch.no_grad():
                 train_preds = model(batch['text'], batch['image'])
-                if multilabel:
+                if multilabel or (output_size == 1):
                     train_accuracy = accuracy_score(labels.numpy(), (torch.sigmoid(train_preds).numpy() > 0.5).astype(int))
                 else:
                     train_accuracy = accuracy_score(labels.numpy(), (torch.softmax(train_preds, dim=1).numpy() > 0.5).astype(int))
@@ -647,15 +663,22 @@ def train_late_fusion(train_loader, test_loader, text_input_size, image_input_si
             for batch in test_loader:
                 text, image, labels = batch['text'], batch['image'], batch['labels']
                 outputs = model(text, image)
-                preds = torch.softmax(outputs, dim=1)
+                if multilabel or (output_size == 1):
+                    preds = torch.sigmoid(outputs)
+                else:
+                    preds = torch.softmax(outputs, dim=1)
                 y_true.extend(labels.numpy())
                 y_pred.extend(preds.numpy())
                 
             y_true, y_pred = np.array(y_true), np.array(y_pred)
             
-            predicted_class_indices = np.argmax(y_pred, axis=1)
-            # Convert the predicted class indices to one-hot encoding
-            y_pred_one_hot = np.eye(y_pred.shape[1])[predicted_class_indices]
+            if multilabel or (output_size == 1):
+                y_pred_one_hot = (y_pred > 0.5).astype(int)
+            else:
+                predicted_class_indices = np.argmax(y_pred, axis=1)
+                # Convert the predicted class indices to one-hot encoding
+                y_pred_one_hot = np.eye(y_pred.shape[1])[predicted_class_indices]
+                #test_model(y_true, (y_pred > 0.5).astype(int))
             
             test_model(y_true, y_pred_one_hot)
 
