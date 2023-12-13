@@ -232,7 +232,7 @@ class GPT:
 # Create a class to handle the LLAMA 2
 class LLAMA:
     # build the constructor
-    def __init__(self, model='Llama-2-7b', embeddings=False, temperature=0.0, n_repetitions=1, reasoning=False, languages=['english', 'portuguese'], path='data/Portuguese.csv', max_tokens=500):
+    def __init__(self, model='Llama-2-7b', embeddings=False, temperature=0.0, n_repetitions=1, reasoning=False, languages=['english', 'portuguese'], path='data/Portuguese.csv', max_tokens=500, verbose=False):
         
         self.embeddings = embeddings
         
@@ -240,7 +240,7 @@ class LLAMA:
         model_path = self.download_hugging_face_model(model)
         
         from llama_cpp import Llama
-        self.llm = Llama(model_path=model_path, embedding=self.embeddings)
+        self.llm = Llama(model_path=model_path, embedding=self.embeddings, verbose=verbose)
         
         self.path = path
         
@@ -249,6 +249,7 @@ class LLAMA:
         self.reasoning = reasoning
         self.languages = languages
         self.max_tokens = max_tokens
+        
         
         self.delimiter = "####"
         self.responses = ['A', 'B', 'C', 'D']
@@ -399,12 +400,18 @@ class LLAMA:
         return messages
 
     def get_embedding(self, text):
+        
+        if  self.index % 5000 == 0:
+            print(f'{self.index} Embeddings generated!')
+            
+        self.index += 1 
 
         text = text.replace("\n", " ")
 
         return self.llm.create_embedding(input = [text])['data'][0]['embedding']
 
     def get_embedding_df(self, column, directory, file):
+        self.index = 0
         df = pd.read_csv(self.path)
         df["embeddings"] = df[column].apply(lambda x: self.get_embedding(x))
 
