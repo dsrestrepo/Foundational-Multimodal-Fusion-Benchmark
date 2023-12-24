@@ -535,7 +535,16 @@ def train_early_fusion(train_loader, test_loader, text_input_size, image_input_s
                 y_pred.extend(preds.numpy())
 
             y_true, y_pred = np.array(y_true), np.array(y_pred)
-            test_accuracy = accuracy_score(y_true, (y_pred > 0.5).astype(int))
+                        
+            if multilabel or (output_size == 1):
+                y_pred_one_hot = (y_pred > 0.5).astype(int)
+            else:
+                predicted_class_indices = np.argmax(y_pred, axis=1)
+                # Convert the predicted class indices to one-hot encoding
+                y_pred_one_hot = np.eye(y_pred.shape[1])[predicted_class_indices]
+                #test_model(y_true, (y_pred > 0.5).astype(int))
+                
+            test_accuracy = accuracy_score(y_true, y_pred_one_hot)
             test_accuracy_list.append(test_accuracy)
 
             print(f"Epoch {epoch + 1}/{num_epochs} - Test Accuracy: {test_accuracy:.4f}")
@@ -630,7 +639,16 @@ def train_late_fusion(train_loader, test_loader, text_input_size, image_input_si
                 y_pred.extend(preds.numpy())
 
             y_true, y_pred = np.array(y_true), np.array(y_pred)
-            test_accuracy = accuracy_score(y_true, (y_pred > 0.5).astype(int))
+            
+            if multilabel or (output_size == 1):
+                y_pred_one_hot = (y_pred > 0.5).astype(int)
+            else:
+                predicted_class_indices = np.argmax(y_pred, axis=1)
+                # Convert the predicted class indices to one-hot encoding
+                y_pred_one_hot = np.eye(y_pred.shape[1])[predicted_class_indices]
+                #test_model(y_true, (y_pred > 0.5).astype(int))
+                
+            test_accuracy = accuracy_score(y_true, y_pred_one_hot)
             test_accuracy_list.append(test_accuracy)
 
             print(f"Epoch {epoch + 1}/{num_epochs} - Test Accuracy: {test_accuracy:.4f}")
