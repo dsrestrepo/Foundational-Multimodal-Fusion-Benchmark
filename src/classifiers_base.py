@@ -286,7 +286,6 @@ class EarlyFusionModel(nn.Module):
                 output_dim = h
         
         self.fc1 = nn.Sequential(*layers)
-
         
         #self.fc1 = nn.Linear(text_input_size + image_input_size, hidden)
         
@@ -430,24 +429,24 @@ def test_model(y_test, y_pred):
     if y_pred.shape[1] < 102:
         plot_matrix = True
         
-    
     if y_pred.shape[1] > 1:
         y_test = np.argmax(y_test, axis=1)
         y_pred = np.argmax(y_pred, axis=1)
     
     # Confusion matrix
-    # Create a confusion matrix of the test predictions
-    cm = confusion_matrix(y_test, y_pred)
-    # create heatmap
-    # Set the size of the plot
-    fig, ax = plt.subplots(figsize=(15, 15))
-    sns.heatmap(cm, annot=True, cmap='Blues', fmt='g', ax=ax)
-    # Set plot labels
-    plt.xlabel('Predicted')
-    plt.ylabel('True')
-    plt.title('Confusion Matrix')
-    # Display plot
-    plt.show()
+    if plot_matrix:
+        # Create a confusion matrix of the test predictions
+        cm = confusion_matrix(y_test, y_pred)
+        # create heatmap
+        # Set the size of the plot
+        fig, ax = plt.subplots(figsize=(15, 15))
+        sns.heatmap(cm, annot=True, cmap='Blues', fmt='g', ax=ax)
+        # Set plot labels
+        plt.xlabel('Predicted')
+        plt.ylabel('True')
+        plt.title('Confusion Matrix')
+        # Display plot
+        plt.show()
 
     #create ROC curve
     from sklearn.preprocessing import LabelBinarizer
@@ -566,16 +565,25 @@ def train_early_fusion(train_loader, test_loader, output_size, num_epochs=5, mul
             y_true, y_pred = [], []
             for batch in test_loader:
                 input_ids, attention_mask, image, labels = batch['text']['input_ids'].to(device), batch['text']['attention_mask'].to(device), batch['image'].to(device), batch['labels'].to(device)
-                outputs = model(input_ids, attention_mask)
+                outputs = model(input_ids, attention_mask, image)
                 if multilabel or (output_size == 1):
                     preds = torch.sigmoid(outputs)
                 else:
                     preds = torch.softmax(outputs, dim=1)
+
                 y_true.extend(labels.numpy())
                 y_pred.extend(preds.numpy())
 
             y_true, y_pred = np.array(y_true), np.array(y_pred)
-            test_accuracy = accuracy_score(y_true, (y_pred > 0.5).astype(int))
+            
+            if multilabel or (output_size == 1):
+                y_pred_one_hot = (y_pred > 0.5).astype(int)
+            else:
+                predicted_class_indices = np.argmax(y_pred, axis=1)
+                # Convert the predicted class indices to one-hot encoding
+                y_pred_one_hot = np.eye(y_pred.shape[1])[predicted_class_indices]
+            
+            test_accuracy = accuracy_score(y_true, y_pred_one_hot)
             test_accuracy_list.append(test_accuracy)
 
             print(f"Epoch {epoch + 1}/{num_epochs} - Test Accuracy: {test_accuracy:.4f}")
@@ -595,7 +603,7 @@ def train_early_fusion(train_loader, test_loader, output_size, num_epochs=5, mul
             y_true, y_pred = [], []
             for batch in test_loader:
                 input_ids, attention_mask, image, labels = batch['text']['input_ids'].to(device), batch['text']['attention_mask'].to(device), batch['image'].to(device), batch['labels'].to(device)
-                outputs = model(input_ids, attention_mask)
+                outputs = model(input_ids, attention_mask, image)
                 if multilabel or (output_size == 1):
                     preds = torch.sigmoid(outputs)
                 else:
@@ -668,7 +676,7 @@ def train_late_fusion(train_loader, test_loader, output_size, num_epochs=5, mult
             y_true, y_pred = [], []
             for batch in test_loader:
                 input_ids, attention_mask, image, labels = batch['text']['input_ids'].to(device), batch['text']['attention_mask'].to(device), batch['image'].to(device), batch['labels'].to(device)
-                outputs = model(input_ids, attention_mask)
+                outputs = model(input_ids, attention_mask, image)
                 if multilabel or (output_size == 1):
                     preds = torch.sigmoid(outputs)
                 else:
@@ -677,7 +685,14 @@ def train_late_fusion(train_loader, test_loader, output_size, num_epochs=5, mult
                 y_pred.extend(preds.numpy())
 
             y_true, y_pred = np.array(y_true), np.array(y_pred)
-            test_accuracy = accuracy_score(y_true, (y_pred > 0.5).astype(int))
+            if multilabel or (output_size == 1):
+                y_pred_one_hot = (y_pred > 0.5).astype(int)
+            else:
+                predicted_class_indices = np.argmax(y_pred, axis=1)
+                # Convert the predicted class indices to one-hot encoding
+                y_pred_one_hot = np.eye(y_pred.shape[1])[predicted_class_indices]
+            
+            test_accuracy = accuracy_score(y_true, y_pred_one_hot)
             test_accuracy_list.append(test_accuracy)
             
             print(f"Epoch {epoch + 1}/{num_epochs} - Test Accuracy: {test_accuracy:.4f}")
@@ -697,7 +712,7 @@ def train_late_fusion(train_loader, test_loader, output_size, num_epochs=5, mult
             y_true, y_pred = [], []
             for batch in test_loader:
                 input_ids, attention_mask, image, labels = batch['text']['input_ids'].to(device), batch['text']['attention_mask'].to(device), batch['image'].to(device), batch['labels'].to(device)
-                outputs = model(input_ids, attention_mask)
+                outputs = model(input_ids, attention_mask, image)
                 if multilabel or (output_size == 1):
                     preds = torch.sigmoid(outputs)
                 else:
