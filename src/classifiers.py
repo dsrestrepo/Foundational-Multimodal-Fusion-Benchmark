@@ -403,17 +403,18 @@ def test_model(y_test, y_pred):
     
     # Confusion matrix
     # Create a confusion matrix of the test predictions
-    cm = confusion_matrix(y_test, y_pred)
-    # create heatmap
-    # Set the size of the plot
-    fig, ax = plt.subplots(figsize=(15, 15))
-    sns.heatmap(cm, annot=True, cmap='Blues', fmt='g', ax=ax)
-    # Set plot labels
-    plt.xlabel('Predicted')
-    plt.ylabel('True')
-    plt.title('Confusion Matrix')
-    # Display plot
-    plt.show()
+    if plot_matrix:
+        cm = confusion_matrix(y_test, y_pred)
+        # create heatmap
+        # Set the size of the plot
+        fig, ax = plt.subplots(figsize=(15, 15))
+        sns.heatmap(cm, annot=True, cmap='Blues', fmt='g', ax=ax)
+        # Set plot labels
+        plt.xlabel('Predicted')
+        plt.ylabel('True')
+        plt.title('Confusion Matrix')
+        # Display plot
+        plt.show()
 
     #create ROC curve
     from sklearn.preprocessing import LabelBinarizer
@@ -474,7 +475,9 @@ def test_model(y_test, y_pred):
     f1 = f1_score(y_test, y_pred, average='weighted')  # Use weighted average for multi-class F1-score
 
     return accuracy, precision, recall, f1
-    
+
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
     
 def train_early_fusion(train_loader, test_loader, text_input_size, image_input_size, output_size, num_epochs=5, multilabel=True, report=False):
     """
@@ -493,7 +496,10 @@ def train_early_fusion(train_loader, test_loader, text_input_size, image_input_s
     Example:
     train_early_fusion(train_loader, test_loader, text_input_size=512, image_input_size=256, output_size=10, num_epochs=5, multilabel=True)
     """
-    model = LateFusionModel(text_input_size=text_input_size, image_input_size=image_input_size, output_size=output_size)
+    model = EarlyFusionModel(text_input_size=text_input_size, image_input_size=image_input_size, output_size=output_size)
+
+    
+    print(f'The number of parameters of the model are: {count_parameters(model)}')
 
     if multilabel or (output_size == 1):
         criterion = nn.BCEWithLogitsLoss()
@@ -531,16 +537,6 @@ def train_early_fusion(train_loader, test_loader, text_input_size, image_input_s
             y_true, y_pred = np.array(y_true), np.array(y_pred)
             test_accuracy = accuracy_score(y_true, (y_pred > 0.5).astype(int))
             test_accuracy_list.append(test_accuracy)
-            
-            # Calculate and store train accuracy
-            model.train()
-            with torch.no_grad():
-                train_preds = model(batch['text'], batch['image'])
-                if multilabel or (output_size == 1):
-                    train_accuracy = accuracy_score(labels.numpy(), (torch.sigmoid(train_preds).numpy() > 0.5).astype(int))
-                else:
-                    train_accuracy = accuracy_score(labels.numpy(), (torch.softmax(train_preds, dim=1).numpy() > 0.5).astype(int))
-                train_accuracy_list.append(train_accuracy)
 
             print(f"Epoch {epoch + 1}/{num_epochs} - Test Accuracy: {test_accuracy:.4f}")
 
@@ -598,6 +594,8 @@ def train_late_fusion(train_loader, test_loader, text_input_size, image_input_si
     """
     model = LateFusionModel(text_input_size=text_input_size, image_input_size=image_input_size, output_size=output_size)
     
+    print(f'The number of parameters of the model are: {count_parameters(model)}')
+    
     if multilabel or (output_size == 1):
         criterion = nn.BCEWithLogitsLoss()
     else:
@@ -634,16 +632,6 @@ def train_late_fusion(train_loader, test_loader, text_input_size, image_input_si
             y_true, y_pred = np.array(y_true), np.array(y_pred)
             test_accuracy = accuracy_score(y_true, (y_pred > 0.5).astype(int))
             test_accuracy_list.append(test_accuracy)
-            
-            # Calculate and store train accuracy
-            model.train()
-            with torch.no_grad():
-                train_preds = model(batch['text'], batch['image'])
-                if multilabel or (output_size == 1):
-                    train_accuracy = accuracy_score(labels.numpy(), (torch.sigmoid(train_preds).numpy() > 0.5).astype(int))
-                else:
-                    train_accuracy = accuracy_score(labels.numpy(), (torch.softmax(train_preds, dim=1).numpy() > 0.5).astype(int))
-                train_accuracy_list.append(train_accuracy)
 
             print(f"Epoch {epoch + 1}/{num_epochs} - Test Accuracy: {test_accuracy:.4f}")
 
