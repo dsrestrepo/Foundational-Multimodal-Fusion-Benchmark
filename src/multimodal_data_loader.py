@@ -37,7 +37,7 @@ class VQADataset(Dataset):
     Example:
     dataset = VQADataset(df, text_cols=['text1', 'text2'], image_cols=['image1', 'image2'], label_col='answer', mlb=mlb, train_columns=train_columns)
     """
-    def __init__(self, df, text_cols, image_cols, label_col, mlb, train_columns, tokenizer, max_len=128, shape=(224, 224), transform=None):
+    def __init__(self, df, text_cols, image_cols, label_col, mlb, train_columns, tokenizer, max_len=50, shape=(224, 224), transform=None):
         # Text
         self.text_data = df[text_cols].values
         self.tokenizer = tokenizer

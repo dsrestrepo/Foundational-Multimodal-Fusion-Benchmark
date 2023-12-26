@@ -113,7 +113,7 @@ class VisionModel(torch.nn.Module):
     For more information on specific models, refer to the respective model's documentation.
     """
     
-    def __init__(self, config=None, mode='fine_tune'):
+    def __init__(self, config=None, mode='fine_tune', dropout_rate=0.5):
         """
         Initialize the FoundationalCVModel module.
 
@@ -130,7 +130,10 @@ class VisionModel(torch.nn.Module):
             vit_config = config
         
         # Instantiate ViT model without pre-trained weights
-        self.vit = ViTModel(config=vit_config)
+        #self.vit = ViTModel(config=vit_config)
+        self.vit = ViTModel.from_pretrained("google/vit-base-patch16-224-in21k")
+        
+        self.dropout = nn.Dropout(p=dropout_rate)
         
             
         # Set the model to evaluation or fine-tuning mode
@@ -154,6 +157,8 @@ class VisionModel(torch.nn.Module):
         # Pass the input image to the model
         features = self.vit(x)
         features = features['pooler_output']
+        
+        features = self.dropout(features)
 
         # Return the features
         return features
@@ -202,7 +207,7 @@ class TextModel(torch.nn.Module):
 
     For more information on specific models, refer to the respective model's documentation.
     """
-    def __init__(self, config=None, mode='fine_tune'):
+    def __init__(self, config=None, mode='fine_tune', dropout_rate=0.5):
         super(TextModel, self).__init__()
         
         # Create a ViT configuration with default settings
@@ -212,7 +217,10 @@ class TextModel(torch.nn.Module):
             bert_config = config
         
         # Instantiate BERT model without pre-trained weights
-        self.bert = BertModel(config=bert_config)
+        #self.bert = BertModel(config=bert_config)
+        self.bert = BertModel.from_pretrained("bert-base-uncased")
+        
+        self.dropout = nn.Dropout(p=dropout_rate)
             
         # Set the model to evaluation or fine-tuning mode
         self.mode = mode
@@ -224,6 +232,7 @@ class TextModel(torch.nn.Module):
     def forward(self, input_ids, attention_mask):
         outputs = self.bert(input_ids=input_ids, attention_mask=attention_mask)
         features = outputs.last_hidden_state[:, 0, :]
+        features = self.dropout(features)
         return features
 
 
@@ -272,7 +281,7 @@ class EarlyFusionModel(nn.Module):
         if isinstance(hidden, int):
             layers.append(nn.Linear(output_dim, hidden))
             layers.append(nn.ReLU())
-            #layers.append(nn.Dropout(p=0.2))
+            layers.append(nn.Dropout(p=0.2))
 
             output_dim = hidden
             
@@ -281,8 +290,8 @@ class EarlyFusionModel(nn.Module):
             for h in hidden:
                 layers.append(nn.Linear(output_dim, h))
                 layers.append(nn.ReLU())
-                #layers.append(nn.Dropout(p=0.2))
-                #layers.append(nn.BatchNorm1d(h))
+                layers.append(nn.Dropout(p=0.2))
+                layers.append(nn.BatchNorm1d(h))
                 output_dim = h
         
         self.fc1 = nn.Sequential(*layers)
@@ -371,7 +380,7 @@ class LateFusionModel(nn.Module):
         if isinstance(hidden, int):
             layers.append(nn.Linear(output_dim, hidden))
             layers.append(nn.ReLU())
-            #layers.append(nn.Dropout(p=p))
+            layers.append(nn.Dropout(p=p))
 
             output_dim = hidden
             
@@ -380,8 +389,8 @@ class LateFusionModel(nn.Module):
             for h in hidden:
                 layers.append(nn.Linear(output_dim, h))
                 layers.append(nn.ReLU())
-                #layers.append(nn.Dropout(p=p))
-                #layers.append(nn.BatchNorm1d(h))
+                layers.append(nn.Dropout(p=p))
+                layers.append(nn.BatchNorm1d(h))
                 output_dim = h
         
         fc = nn.Sequential(*layers)
@@ -534,16 +543,28 @@ def train_early_fusion(train_loader, test_loader, output_size, num_epochs=5, mul
     text_model = TextModel()
     image_model = VisionModel()
     model = EarlyFusionModel(text_model=text_model, image_model=image_model, output_size=output_size)
+    # Wrap the model with DataParallel
+    model = nn.DataParallel(model)
     
     model.to(device)
     
-    
     print(f'The number of parameters of the model are: {count_parameters(model)}')
+    
+    from sklearn.utils.class_weight import compute_class_weight
+    import numpy as np
+
+    # Assuming train_loader.dataset.labels is a one-hot representation
+    class_indices = np.argmax(train_loader.dataset.labels, axis=1)
+
+    # Compute class weights using class indices
+    class_weights = compute_class_weight('balanced', classes=np.unique(class_indices), y=class_indices)
+    class_weights = torch.tensor(class_weights, dtype=torch.float32)
+
 
     if multilabel or (output_size == 1):
-        criterion = nn.BCEWithLogitsLoss()
+        criterion = nn.BCEWithLogitsLoss(weight=class_weights)
     else:
-        criterion = nn.CrossEntropyLoss()
+        criterion = nn.CrossEntropyLoss(weight=class_weights)
         
     optimizer = optim.Adam(model.parameters(), lr=0.001)
 
@@ -646,16 +667,29 @@ def train_late_fusion(train_loader, test_loader, output_size, num_epochs=5, mult
     text_model = TextModel()
     image_model = VisionModel()
     model = LateFusionModel(text_model=text_model, image_model=image_model, output_size=output_size)
+    # Wrap the model with DataParallel
+    model = nn.DataParallel(model)
     
     model.to(device)
     
     print(f'The number of parameters of the model are: {count_parameters(model)}')
     
+    from sklearn.utils.class_weight import compute_class_weight
+    import numpy as np
+
+    # Assuming train_loader.dataset.labels is a one-hot representation
+    class_indices = np.argmax(train_loader.dataset.labels, axis=1)
+
+    # Compute class weights using class indices
+    class_weights = compute_class_weight('balanced', classes=np.unique(class_indices), y=class_indices)
+    class_weights = torch.tensor(class_weights, dtype=torch.float32)
+
+
     if multilabel or (output_size == 1):
-        criterion = nn.BCEWithLogitsLoss()
+        criterion = nn.BCEWithLogitsLoss(weight=class_weights)
     else:
-        criterion = nn.CrossEntropyLoss()
-    
+        criterion = nn.CrossEntropyLoss(weight=class_weights)
+        
     optimizer = optim.Adam(model.parameters(), lr=0.001)
 
     train_accuracy_list = []
