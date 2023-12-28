@@ -520,7 +520,7 @@ def test_model(y_test, y_pred):
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
     
-def train_early_fusion(train_loader, test_loader, output_size, num_epochs=5, multilabel=True, report=False):
+def train_early_fusion(train_loader, test_loader, output_size, num_epochs=5, multilabel=True, report=False, lr=0.001):
     """
     Train an Early Fusion Model.
 
@@ -548,25 +548,36 @@ def train_early_fusion(train_loader, test_loader, output_size, num_epochs=5, mul
     
     model.to(device)
     
+    
     print(f'The number of parameters of the model are: {count_parameters(model)}')
     
     from sklearn.utils.class_weight import compute_class_weight
     import numpy as np
 
-    # Assuming train_loader.dataset.labels is a one-hot representation
-    class_indices = np.argmax(train_loader.dataset.labels, axis=1)
+    if not multilabel:
+        # Assuming train_loader.dataset.labels is a one-hot representation
+        class_indices = np.argmax(train_loader.dataset.labels, axis=1)
 
-    # Compute class weights using class indices
-    class_weights = compute_class_weight('balanced', classes=np.unique(class_indices), y=class_indices)
-    class_weights = torch.tensor(class_weights, dtype=torch.float32)
+        # Compute class weights using class indices
+        class_weights = compute_class_weight('balanced', classes=np.unique(class_indices), y=class_indices)
+        class_weights = torch.tensor(class_weights, dtype=torch.float32)
+    else:
+        class_counts = train_loader.dataset.labels.sum(axis=0)
+        total_samples = len(train_loader.dataset.labels)
+        num_classes = train_loader.dataset.labels.shape[1]
+        class_weights = total_samples / (num_classes * class_counts)
 
+        # Convert class_weights to a PyTorch tensor
+        class_weights = torch.tensor(class_weights, dtype=torch.float32)
 
-    if multilabel or (output_size == 1):
+    if multilabel:
+        criterion = nn.BCEWithLogitsLoss(weight=class_weights)
+    elif(output_size == 1):
         criterion = nn.BCEWithLogitsLoss(weight=class_weights)
     else:
         criterion = nn.CrossEntropyLoss(weight=class_weights)
         
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
+    optimizer = optim.AdamW(model.parameters(), lr=lr)
 
     train_accuracy_list = []
     test_accuracy_list = []
@@ -644,7 +655,7 @@ def train_early_fusion(train_loader, test_loader, output_size, num_epochs=5, mul
             
 
 # Function to train late fusion model (similar changes)
-def train_late_fusion(train_loader, test_loader, output_size, num_epochs=5, multilabel=True, report=False):
+def train_late_fusion(train_loader, test_loader, output_size, num_epochs=5, multilabel=True, report=False, lr=0.001):
     """
     Train a Late Fusion Model.
 
@@ -677,20 +688,22 @@ def train_late_fusion(train_loader, test_loader, output_size, num_epochs=5, mult
     from sklearn.utils.class_weight import compute_class_weight
     import numpy as np
 
-    # Assuming train_loader.dataset.labels is a one-hot representation
-    class_indices = np.argmax(train_loader.dataset.labels, axis=1)
+    if not multilabel:
+        # Assuming train_loader.dataset.labels is a one-hot representation
+        class_indices = np.argmax(train_loader.dataset.labels, axis=1)
 
-    # Compute class weights using class indices
-    class_weights = compute_class_weight('balanced', classes=np.unique(class_indices), y=class_indices)
-    class_weights = torch.tensor(class_weights, dtype=torch.float32)
+        # Compute class weights using class indices
+        class_weights = compute_class_weight('balanced', classes=np.unique(class_indices), y=class_indices)
+        class_weights = torch.tensor(class_weights, dtype=torch.float32)
 
-
-    if multilabel or (output_size == 1):
+    if multilabel:
+        criterion = nn.BCEWithLogitsLoss()
+    elif(output_size == 1):
         criterion = nn.BCEWithLogitsLoss(weight=class_weights)
     else:
         criterion = nn.CrossEntropyLoss(weight=class_weights)
         
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
+    optimizer = optim.AdamW(model.parameters(), lr=lr)
 
     train_accuracy_list = []
     test_accuracy_list = []
