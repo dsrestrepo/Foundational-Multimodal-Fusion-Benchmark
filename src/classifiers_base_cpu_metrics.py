@@ -2,6 +2,7 @@ import os
 
 import pandas as pd
 import numpy as np
+from sklearn.utils.class_weight import compute_class_weight
 from PIL import Image
 from sklearn.metrics import accuracy_score, f1_score
 from sklearn.preprocessing import MultiLabelBinarizer
@@ -37,6 +38,10 @@ import multiprocessing
 import time
 
 import torch.autograd.profiler as profiler
+
+import warnings
+# Suppress all warnings
+warnings.filterwarnings("ignore")
 
 
 ######### Datasets Preparation #########
@@ -131,7 +136,7 @@ class VisionModel(torch.nn.Module):
     For more information on specific models, refer to the respective model's documentation.
     """
     
-    def __init__(self, config=None, mode='fine_tune', dropout_rate=0.5):
+    def __init__(self, config=None, mode='fine_tune', dropout_rate=0.2):
         """
         Initialize the FoundationalCVModel module.
 
@@ -225,7 +230,7 @@ class TextModel(torch.nn.Module):
 
     For more information on specific models, refer to the respective model's documentation.
     """
-    def __init__(self, config=None, mode='fine_tune', dropout_rate=0.5):
+    def __init__(self, config=None, mode='fine_tune', dropout_rate=0.2):
         super(TextModel, self).__init__()
         
         # Create a ViT configuration with default settings
@@ -557,7 +562,7 @@ def test_model(y_test, y_pred):
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
     
-def train_early_fusion(train_loader, test_loader, output_size, num_epochs=5, multilabel=True, report=False, lr=0.001):
+def train_early_fusion(train_loader, test_loader, output_size, num_epochs=5, multilabel=True, report=False, lr=0.001, adam=False):
     """
     Train an Early Fusion Model.
 
@@ -587,9 +592,6 @@ def train_early_fusion(train_loader, test_loader, output_size, num_epochs=5, mul
     
     
     print(f'The number of parameters of the model are: {count_parameters(model)}')
-    
-    from sklearn.utils.class_weight import compute_class_weight
-    import numpy as np
 
     if not multilabel:
         # Assuming train_loader.dataset.labels is a one-hot representation
@@ -614,7 +616,10 @@ def train_early_fusion(train_loader, test_loader, output_size, num_epochs=5, mul
     else:
         criterion = nn.CrossEntropyLoss(weight=class_weights)
         
-    optimizer = optim.AdamW(model.parameters(), lr=lr)
+    if adam:
+        optimizer = optim.Adam(model.parameters(), lr=lr)
+    else:
+        optimizer = optim.AdamW(model.parameters(), lr=lr)
 
     train_accuracy_list = []
     test_accuracy_list = []
@@ -736,7 +741,7 @@ def train_early_fusion(train_loader, test_loader, output_size, num_epochs=5, mul
             
 
 # Function to train late fusion model (similar changes)
-def train_late_fusion(train_loader, test_loader, output_size, num_epochs=5, multilabel=True, report=False, lr=0.001):
+def train_late_fusion(train_loader, test_loader, output_size, num_epochs=5, multilabel=True, report=False, lr=0.001, adam=False):
     """
     Train a Late Fusion Model.
 
@@ -765,9 +770,6 @@ def train_late_fusion(train_loader, test_loader, output_size, num_epochs=5, mult
     model.to(device)
     
     print(f'The number of parameters of the model are: {count_parameters(model)}')
-    
-    from sklearn.utils.class_weight import compute_class_weight
-    import numpy as np
 
     if not multilabel:
         # Assuming train_loader.dataset.labels is a one-hot representation
@@ -776,15 +778,27 @@ def train_late_fusion(train_loader, test_loader, output_size, num_epochs=5, mult
         # Compute class weights using class indices
         class_weights = compute_class_weight('balanced', classes=np.unique(class_indices), y=class_indices)
         class_weights = torch.tensor(class_weights, dtype=torch.float32)
+    else:
+        class_counts = train_loader.dataset.labels.sum(axis=0)
+        total_samples = len(train_loader.dataset.labels)
+        num_classes = train_loader.dataset.labels.shape[1]
+        class_weights = total_samples / (num_classes * class_counts)
+
+        # Convert class_weights to a PyTorch tensor
+        class_weights = torch.tensor(class_weights, dtype=torch.float32)
 
     if multilabel:
-        criterion = nn.BCEWithLogitsLoss()
+        criterion = nn.BCEWithLogitsLoss(weight=class_weights)
     elif(output_size == 1):
         criterion = nn.BCEWithLogitsLoss(weight=class_weights)
     else:
         criterion = nn.CrossEntropyLoss(weight=class_weights)
         
-    optimizer = optim.AdamW(model.parameters(), lr=lr)
+        
+    if adam:
+        optimizer = optim.Adam(model.parameters(), lr=lr)
+    else:
+        optimizer = optim.AdamW(model.parameters(), lr=lr)
 
     train_accuracy_list = []
     test_accuracy_list = []
