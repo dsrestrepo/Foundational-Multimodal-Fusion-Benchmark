@@ -27,6 +27,8 @@ from sklearn.metrics import confusion_matrix
 from sklearn.metrics import classification_report
 from sklearn.metrics import RocCurveDisplay
 
+import time
+
 
 
 ######### Merge Datasets #########
@@ -280,7 +282,7 @@ class EarlyFusionModel(nn.Module):
         if isinstance(hidden, int):
             layers.append(nn.Linear(output_dim, hidden))
             layers.append(nn.ReLU())
-            #layers.append(nn.Dropout(p=0.2))
+            layers.append(nn.Dropout(p=0.2))
 
             output_dim = hidden
             
@@ -289,8 +291,8 @@ class EarlyFusionModel(nn.Module):
             for h in hidden:
                 layers.append(nn.Linear(output_dim, h))
                 layers.append(nn.ReLU())
-                #layers.append(nn.Dropout(p=0.2))
-                #layers.append(nn.BatchNorm1d(h))
+                layers.append(nn.Dropout(p=0.2))
+                layers.append(nn.BatchNorm1d(h))
                 output_dim = h
         
         self.fc1 = nn.Sequential(*layers)
@@ -351,7 +353,7 @@ class LateFusionModel(nn.Module):
         if isinstance(hidden, int):
             layers.append(nn.Linear(output_dim, hidden))
             layers.append(nn.ReLU())
-            #layers.append(nn.Dropout(p=p))
+            layers.append(nn.Dropout(p=p))
 
             output_dim = hidden
             
@@ -360,8 +362,8 @@ class LateFusionModel(nn.Module):
             for h in hidden:
                 layers.append(nn.Linear(output_dim, h))
                 layers.append(nn.ReLU())
-                #layers.append(nn.Dropout(p=p))
-                #layers.append(nn.BatchNorm1d(h))
+                layers.append(nn.Dropout(p=p))
+                layers.append(nn.BatchNorm1d(h))
                 output_dim = h
         
         fc = nn.Sequential(*layers)
@@ -479,7 +481,7 @@ def test_model(y_test, y_pred):
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
     
-def train_early_fusion(train_loader, test_loader, text_input_size, image_input_size, output_size, num_epochs=5, multilabel=True, report=False):
+def train_early_fusion(train_loader, test_loader, text_input_size, image_input_size, output_size, num_epochs=5, multilabel=True, report=False, lr=0.001):
     """
     Train an Early Fusion Model.
 
@@ -496,36 +498,85 @@ def train_early_fusion(train_loader, test_loader, text_input_size, image_input_s
     Example:
     train_early_fusion(train_loader, test_loader, text_input_size=512, image_input_size=256, output_size=10, num_epochs=5, multilabel=True)
     """
+    
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = EarlyFusionModel(text_input_size=text_input_size, image_input_size=image_input_size, output_size=output_size)
-
+    model = nn.DataParallel(model)
+    
+    model.to(device)
     
     print(f'The number of parameters of the model are: {count_parameters(model)}')
+    
+    from sklearn.utils.class_weight import compute_class_weight
+    import numpy as np
 
-    if multilabel or (output_size == 1):
-        criterion = nn.BCEWithLogitsLoss()
+    if not multilabel:
+        # Assuming train_loader.dataset.labels is a one-hot representation
+        class_indices = np.argmax(train_loader.dataset.labels, axis=1)
+
+        # Compute class weights using class indices
+        class_weights = compute_class_weight('balanced', classes=np.unique(class_indices), y=class_indices)
+        class_weights = torch.tensor(class_weights, dtype=torch.float32)
     else:
-        criterion = nn.CrossEntropyLoss()
+        class_counts = train_loader.dataset.labels.sum(axis=0)
+        total_samples = len(train_loader.dataset.labels)
+        num_classes = train_loader.dataset.labels.shape[1]
+        class_weights = total_samples / (num_classes * class_counts)
+
+        # Convert class_weights to a PyTorch tensor
+        class_weights = torch.tensor(class_weights, dtype=torch.float32)
+
+    if multilabel:
+        criterion = nn.BCEWithLogitsLoss(weight=class_weights)
+    elif(output_size == 1):
+        criterion = nn.BCEWithLogitsLoss(weight=class_weights)
+    else:
+        criterion = nn.CrossEntropyLoss(weight=class_weights)
+    
+    optimizer = optim.AdamW(model.parameters(), lr=lr)
+
+    #if multilabel or (output_size == 1):
+    #    criterion = nn.BCEWithLogitsLoss()
+    #else:
+    #    criterion = nn.CrossEntropyLoss()
         
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
+    #optimizer = optim.Adam(model.parameters(), lr=0.001)
 
     train_accuracy_list = []
     test_accuracy_list = []
+    
+    # Initialize variables to store total training and inference times
+    total_training_time = 0
+    total_inference_time = 0
+    
 
     for epoch in range(num_epochs):
+        
+        # Start measuring training time
+        epoch_start_time = time.time()
+        
         model.train()
         for batch in train_loader:
-            text, image, labels = batch['text'], batch['image'], batch['labels']
+            text, image, labels = batch['text'].to(device), batch['image'].to(device), batch['labels'].to(device)
             optimizer.zero_grad()
             outputs = model(text, image)
             loss = criterion(outputs, labels)
             loss.backward()
             optimizer.step()
+        
+        # End measuring training time
+        epoch_end_time = time.time()
+        epoch_training_time = epoch_end_time - epoch_start_time
+        total_training_time += epoch_training_time
+        
+        # Start measuring inference time
+        epoch_start_time = time.time()
 
         model.eval()
         with torch.no_grad():
             y_true, y_pred = [], []
             for batch in test_loader:
-                text, image, labels = batch['text'], batch['image'], batch['labels']
+                text, image, labels = batch['text'].to(device), batch['image'].to(device), batch['labels'].to(device)
                 outputs = model(text, image)
                 if multilabel or (output_size == 1):
                     preds = torch.sigmoid(outputs)
@@ -548,6 +599,25 @@ def train_early_fusion(train_loader, test_loader, text_input_size, image_input_s
             test_accuracy_list.append(test_accuracy)
 
             print(f"Epoch {epoch + 1}/{num_epochs} - Test Accuracy: {test_accuracy:.4f}")
+            
+        # End measuring inference time
+        epoch_end_time = time.time()
+        epoch_inference_time = epoch_end_time - epoch_start_time
+        total_inference_time += epoch_inference_time
+        
+        # Print or log the training and inference times for the current epoch
+        print(f"Epoch {epoch + 1}/{num_epochs} - Training Time: {epoch_training_time:.2f} seconds | Inference Time: {epoch_inference_time:.2f} seconds")
+
+    # Calculate average training time per epoch
+    average_training_time_per_epoch = total_training_time / num_epochs
+
+    # Calculate average inference time per epoch
+    average_inference_time_per_epoch = total_inference_time / num_epochs
+
+    print(f"Average Training Time per Epoch: {average_training_time_per_epoch:.2f} seconds")
+    print(f"Total Training Time per Epoch: {total_training_time:.2f} seconds")
+    print(f"Average Inference Time per Epoch: {average_inference_time_per_epoch:.2f} seconds")
+    print(f"Total Inference Time per Epoch: {total_inference_time:.2f} seconds")
 
     # Plot the accuracy
     #plt.plot(range(1, num_epochs + 1), train_accuracy_list, label='Train Accuracy')
@@ -563,7 +633,7 @@ def train_early_fusion(train_loader, test_loader, text_input_size, image_input_s
         with torch.no_grad():
             y_true, y_pred = [], []
             for batch in test_loader:
-                text, image, labels = batch['text'], batch['image'], batch['labels']
+                text, image, labels = batch['text'].to(device), batch['image'].to(device), batch['labels'].to(device)
                 outputs = model(text, image)
                 if multilabel or (output_size == 1):
                     preds = torch.sigmoid(outputs)
@@ -584,7 +654,7 @@ def train_early_fusion(train_loader, test_loader, text_input_size, image_input_s
             
 
 # Function to train late fusion model (similar changes)
-def train_late_fusion(train_loader, test_loader, text_input_size, image_input_size, output_size, num_epochs=5, multilabel=True, report=False):
+def train_late_fusion(train_loader, test_loader, text_input_size, image_input_size, output_size, num_epochs=5, multilabel=True, report=False, lr=0.001):
     """
     Train a Late Fusion Model.
 
@@ -601,35 +671,86 @@ def train_late_fusion(train_loader, test_loader, text_input_size, image_input_si
     Example:
     train_late_fusion(train_loader, test_loader, text_input_size=512, image_input_size=256, output_size=10, num_epochs=5, multilabel=True)
     """
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = LateFusionModel(text_input_size=text_input_size, image_input_size=image_input_size, output_size=output_size)
+    model = nn.DataParallel(model)
+    
+    model.to(device)
     
     print(f'The number of parameters of the model are: {count_parameters(model)}')
     
-    if multilabel or (output_size == 1):
-        criterion = nn.BCEWithLogitsLoss()
+    from sklearn.utils.class_weight import compute_class_weight
+    import numpy as np
+
+    if not multilabel:
+        # Assuming train_loader.dataset.labels is a one-hot representation
+        class_indices = np.argmax(train_loader.dataset.labels, axis=1)
+
+        # Compute class weights using class indices
+        class_weights = compute_class_weight('balanced', classes=np.unique(class_indices), y=class_indices)
+        class_weights = torch.tensor(class_weights, dtype=torch.float32)
     else:
-        criterion = nn.CrossEntropyLoss()
+        class_counts = train_loader.dataset.labels.sum(axis=0)
+        total_samples = len(train_loader.dataset.labels)
+        num_classes = train_loader.dataset.labels.shape[1]
+        class_weights = total_samples / (num_classes * class_counts)
+
+        # Convert class_weights to a PyTorch tensor
+        class_weights = torch.tensor(class_weights, dtype=torch.float32)
+
+    if multilabel:
+        criterion = nn.BCEWithLogitsLoss(weight=class_weights)
+    elif(output_size == 1):
+        criterion = nn.BCEWithLogitsLoss(weight=class_weights)
+    else:
+        criterion = nn.CrossEntropyLoss(weight=class_weights)
+        
     
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
+    #print(f'The number of parameters of the model are: {count_parameters(model)}')
+    
+    #if multilabel or (output_size == 1):
+    #    criterion = nn.BCEWithLogitsLoss()
+    #else:
+    #    criterion = nn.CrossEntropyLoss()
+    
+    #optimizer = optim.Adam(model.parameters(), lr=0.001)
+    
+    optimizer = optim.AdamW(model.parameters(), lr=lr)
 
     train_accuracy_list = []
     test_accuracy_list = []
+    
+    # Initialize variables to store total training and inference times
+    total_training_time = 0
+    total_inference_time = 0
 
     for epoch in range(num_epochs):
+                
+        # Start measuring training time
+        epoch_start_time = time.time()
+        
         model.train()
         for batch in train_loader:
-            text, image, labels = batch['text'], batch['image'], batch['labels']
+            text, image, labels = batch['text'].to(device), batch['image'].to(device), batch['labels'].to(device)
             optimizer.zero_grad()
             outputs = model(text, image)
             loss = criterion(outputs, labels)
             loss.backward()
             optimizer.step()
+                        
+        # End measuring training time
+        epoch_end_time = time.time()
+        epoch_training_time = epoch_end_time - epoch_start_time
+        total_training_time += epoch_training_time
+        
+        # Start measuring inference time
+        epoch_start_time = time.time()
 
         model.eval()
         with torch.no_grad():
             y_true, y_pred = [], []
             for batch in test_loader:
-                text, image, labels = batch['text'], batch['image'], batch['labels']
+                text, image, labels = batch['text'].to(device), batch['image'].to(device), batch['labels'].to(device)
                 outputs = model(text, image)
                 if multilabel or (output_size == 1):
                     preds = torch.sigmoid(outputs)
@@ -652,6 +773,25 @@ def train_late_fusion(train_loader, test_loader, text_input_size, image_input_si
             test_accuracy_list.append(test_accuracy)
 
             print(f"Epoch {epoch + 1}/{num_epochs} - Test Accuracy: {test_accuracy:.4f}")
+        
+        # End measuring inference time
+        epoch_end_time = time.time()
+        epoch_inference_time = epoch_end_time - epoch_start_time
+        total_inference_time += epoch_inference_time
+        
+        # Print or log the training and inference times for the current epoch
+        print(f"Epoch {epoch + 1}/{num_epochs} - Training Time: {epoch_training_time:.2f} seconds | Inference Time: {epoch_inference_time:.2f} seconds")
+
+    # Calculate average training time per epoch
+    average_training_time_per_epoch = total_training_time / num_epochs
+
+    # Calculate average inference time per epoch
+    average_inference_time_per_epoch = total_inference_time / num_epochs
+
+    print(f"Average Training Time per Epoch: {average_training_time_per_epoch:.2f} seconds")
+    print(f"Total Training Time per Epoch: {total_training_time:.2f} seconds")
+    print(f"Average Inference Time per Epoch: {average_inference_time_per_epoch:.2f} seconds")
+    print(f"Total Inference Time per Epoch: {total_inference_time:.2f} seconds")
 
     # Plot the accuracy
     #plt.plot(range(1, num_epochs + 1), train_accuracy_list, label='Train Accuracy')
@@ -667,7 +807,7 @@ def train_late_fusion(train_loader, test_loader, text_input_size, image_input_si
         with torch.no_grad():
             y_true, y_pred = [], []
             for batch in test_loader:
-                text, image, labels = batch['text'], batch['image'], batch['labels']
+                text, image, labels = batch['text'].to(device), batch['image'].to(device), batch['labels'].to(device)
                 outputs = model(text, image)
                 if multilabel or (output_size == 1):
                     preds = torch.sigmoid(outputs)
