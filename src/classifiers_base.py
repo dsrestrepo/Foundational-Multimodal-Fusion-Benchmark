@@ -30,6 +30,12 @@ from sklearn.metrics import RocCurveDisplay
 from transformers import ViTModel, ViTConfig
 from transformers import BertModel, BertConfig
 
+from tqdm import tqdm
+from joblib import Parallel, delayed
+import multiprocessing
+
+import time
+
 
 ######### Datasets Preparation #########
 def preprocess_df(df, image_columns, images_path):
@@ -44,6 +50,11 @@ def preprocess_df(df, image_columns, images_path):
 
     # Function to correct image paths without extensions
     def correct_image_path(img_path):
+        if type(img_path) != str:
+            img_path = str(img_path)
+            if len(img_path) < 12:
+                img_path = '0' * (12 - len(img_path)) + img_path
+    
         full_img_path = os.path.join(images_path, img_path)
         img_path, file_name = os.path.split(full_img_path)
 
@@ -51,16 +62,21 @@ def preprocess_df(df, image_columns, images_path):
             # Try to find the correct extension in the directory
             for file in os.listdir(img_path):
                 if file.split('.')[0] == file_name:
-                    return os.path.join(images_path, file)
-            
+                    return os.path.join(images_path, file) 
         return full_img_path
 
-
     # Correct image paths if necessary
-    df[image_columns] = df[image_columns].apply(correct_image_path)
+    df[image_columns] = Parallel(n_jobs=multiprocessing.cpu_count())(delayed(correct_image_path)(img_path) for img_path in tqdm(df[image_columns]))
 
     # Filter out rows with images that cannot be opened
-    df = df[df[image_columns].apply(is_valid_image)]
+    valid_mask = Parallel(n_jobs=multiprocessing.cpu_count())(delayed(is_valid_image)(img_path) for img_path in tqdm(df[image_columns]))
+    df = df[valid_mask]
+
+    # Correct image paths if necessary
+    #df[image_columns] = df[image_columns].apply(correct_image_path)
+
+    # Filter out rows with images that cannot be opened
+    #df = df[df[image_columns].apply(is_valid_image)]
 
     return df
     
@@ -265,7 +281,7 @@ class EarlyFusionModel(nn.Module):
     - Make sure the dimensions of the text and image features match when combining them.
 
     """
-    def __init__(self, text_model, image_model, output_size, hidden=[128]):
+    def __init__(self, text_model, image_model, output_size, hidden=[128], freeze_backbone=True):
         super(EarlyFusionModel, self).__init__()
         
         output_dim = 768 + 768
@@ -274,6 +290,16 @@ class EarlyFusionModel(nn.Module):
         self.text_model.train()
         self.image_model = image_model
         self.image_model.train()
+        
+        if freeze_backbone:
+            # Freeze the parameters of the text model
+            for param in text_model.parameters():
+                param.requires_grad = False
+
+            # Freeze the parameters of the image model
+            for param in image_model.parameters():
+                param.requires_grad = False
+        
         # Initialize layers as an empty list
         layers = []
         
@@ -352,7 +378,7 @@ class LateFusionModel(nn.Module):
     - Make sure the dimensions of the text and image features match when combining them.
 
     """
-    def __init__(self, text_model, image_model, output_size, hidden_images=[64], hidden_text=[64]):
+    def __init__(self, text_model, image_model, output_size, hidden_images=[64], hidden_text=[64], freeze_backbone=True):
         super(LateFusionModel, self).__init__()
         
         embed_dim = 768
@@ -361,6 +387,15 @@ class LateFusionModel(nn.Module):
         self.text_model.train()
         self.image_model = image_model
         self.image_model.train()
+        
+        if freeze_backbone:
+            # Freeze the parameters of the text model
+            for param in text_model.parameters():
+                param.requires_grad = False
+
+            # Freeze the parameters of the image model
+            for param in image_model.parameters():
+                param.requires_grad = False
         
         self.text_fc, out_text = self._get_layers(embed_dim, hidden_text)
         self.image_fc, out_images = self._get_layers(embed_dim, hidden_images)
@@ -581,8 +616,16 @@ def train_early_fusion(train_loader, test_loader, output_size, num_epochs=5, mul
 
     train_accuracy_list = []
     test_accuracy_list = []
-
+    
+    # Initialize variables to store total training and inference times
+    total_training_time = 0
+    total_inference_time = 0
+    
     for epoch in range(num_epochs):
+        
+        # Start measuring training time
+        epoch_start_time = time.time()
+        
         model.train()
         for batch in train_loader:
             input_ids, attention_mask, image, labels = batch['text']['input_ids'].to(device), batch['text']['attention_mask'].to(device), batch['image'].to(device), batch['labels'].to(device)
@@ -591,7 +634,15 @@ def train_early_fusion(train_loader, test_loader, output_size, num_epochs=5, mul
             loss = criterion(outputs, labels)
             loss.backward()
             optimizer.step()
-
+            
+        # End measuring training time
+        epoch_end_time = time.time()
+        epoch_training_time = epoch_end_time - epoch_start_time
+        total_training_time += epoch_training_time
+        
+        # Start measuring inference time
+        epoch_start_time = time.time()
+        
         model.eval()
         with torch.no_grad():
             y_true, y_pred = [], []
@@ -619,6 +670,26 @@ def train_early_fusion(train_loader, test_loader, output_size, num_epochs=5, mul
             test_accuracy_list.append(test_accuracy)
 
             print(f"Epoch {epoch + 1}/{num_epochs} - Test Accuracy: {test_accuracy:.4f}")
+            
+        # End measuring inference time
+        epoch_end_time = time.time()
+        epoch_inference_time = epoch_end_time - epoch_start_time
+        total_inference_time += epoch_inference_time
+        
+        # Print or log the training and inference times for the current epoch
+        print(f"Epoch {epoch + 1}/{num_epochs} - Training Time: {epoch_training_time:.2f} seconds | Inference Time: {epoch_inference_time:.2f} seconds")
+
+    # Calculate average training time per epoch
+    average_training_time_per_epoch = total_training_time / num_epochs
+
+    # Calculate average inference time per epoch
+    average_inference_time_per_epoch = total_inference_time / num_epochs
+
+    print(f"Average Training Time per Epoch: {average_training_time_per_epoch:.2f} seconds")
+    print(f"Total Training Time per Epoch: {total_training_time:.2f} seconds")
+    print(f"Average Inference Time per Epoch: {average_inference_time_per_epoch:.2f} seconds")
+    print(f"Total Inference Time per Epoch: {total_inference_time:.2f} seconds")
+    
 
     # Plot the accuracy
     #plt.plot(range(1, num_epochs + 1), train_accuracy_list, label='Train Accuracy')
@@ -707,8 +778,16 @@ def train_late_fusion(train_loader, test_loader, output_size, num_epochs=5, mult
 
     train_accuracy_list = []
     test_accuracy_list = []
+    
+    # Initialize variables to store total training and inference times
+    total_training_time = 0
+    total_inference_time = 0
 
     for epoch in range(num_epochs):
+                
+        # Start measuring training time
+        epoch_start_time = time.time()
+        
         model.train()
         for batch in train_loader:
             input_ids, attention_mask, image, labels = batch['text']['input_ids'].to(device), batch['text']['attention_mask'].to(device), batch['image'].to(device), batch['labels'].to(device)
@@ -717,6 +796,14 @@ def train_late_fusion(train_loader, test_loader, output_size, num_epochs=5, mult
             loss = criterion(outputs, labels)
             loss.backward()
             optimizer.step()
+                                    
+        # End measuring training time
+        epoch_end_time = time.time()
+        epoch_training_time = epoch_end_time - epoch_start_time
+        total_training_time += epoch_training_time
+        
+        # Start measuring inference time
+        epoch_start_time = time.time()
 
         model.eval()
         with torch.no_grad():
@@ -743,6 +830,27 @@ def train_late_fusion(train_loader, test_loader, output_size, num_epochs=5, mult
             test_accuracy_list.append(test_accuracy)
             
             print(f"Epoch {epoch + 1}/{num_epochs} - Test Accuracy: {test_accuracy:.4f}")
+            
+        # End measuring inference time
+        epoch_end_time = time.time()
+        epoch_inference_time = epoch_end_time - epoch_start_time
+        total_inference_time += epoch_inference_time
+        
+        # Print or log the training and inference times for the current epoch
+        print(f"Epoch {epoch + 1}/{num_epochs} - Training Time: {epoch_training_time:.2f} seconds | Inference Time: {epoch_inference_time:.2f} seconds")
+
+    # Calculate average training time per epoch
+    average_training_time_per_epoch = total_training_time / num_epochs
+
+    # Calculate average inference time per epoch
+    average_inference_time_per_epoch = total_inference_time / num_epochs
+
+    print(f"Average Training Time per Epoch: {average_training_time_per_epoch:.2f} seconds")
+    print(f"Total Training Time per Epoch: {total_training_time:.2f} seconds")
+    print(f"Average Inference Time per Epoch: {average_inference_time_per_epoch:.2f} seconds")
+    print(f"Total Inference Time per Epoch: {total_inference_time:.2f} seconds")
+    
+
 
     # Plot the accuracy
     #plt.plot(range(1, num_epochs + 1), train_accuracy_list, label='Train Accuracy')
