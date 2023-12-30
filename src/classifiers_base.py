@@ -2,6 +2,7 @@ import os
 
 import pandas as pd
 import numpy as np
+from sklearn.utils.class_weight import compute_class_weight
 from PIL import Image
 from sklearn.metrics import accuracy_score, f1_score
 from sklearn.preprocessing import MultiLabelBinarizer
@@ -36,6 +37,9 @@ import multiprocessing
 
 import time
 
+import warnings
+# Suppress all warnings
+warnings.filterwarnings("ignore")
 
 ######### Datasets Preparation #########
 def preprocess_df(df, image_columns, images_path):
@@ -129,7 +133,7 @@ class VisionModel(torch.nn.Module):
     For more information on specific models, refer to the respective model's documentation.
     """
     
-    def __init__(self, config=None, mode='fine_tune', dropout_rate=0.5):
+    def __init__(self, config=None, mode='fine_tune', dropout_rate=0.2):
         """
         Initialize the FoundationalCVModel module.
 
@@ -223,7 +227,7 @@ class TextModel(torch.nn.Module):
 
     For more information on specific models, refer to the respective model's documentation.
     """
-    def __init__(self, config=None, mode='fine_tune', dropout_rate=0.5):
+    def __init__(self, config=None, mode='fine_tune', dropout_rate=0.2):
         super(TextModel, self).__init__()
         
         # Create a ViT configuration with default settings
@@ -555,7 +559,7 @@ def test_model(y_test, y_pred):
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
     
-def train_early_fusion(train_loader, test_loader, output_size, num_epochs=5, multilabel=True, report=False, lr=0.001):
+def train_early_fusion(train_loader, test_loader, output_size, num_epochs=5, multilabel=True, report=False, lr=0.001, adam=False):
     """
     Train an Early Fusion Model.
 
@@ -582,12 +586,9 @@ def train_early_fusion(train_loader, test_loader, output_size, num_epochs=5, mul
     model = nn.DataParallel(model)
     
     model.to(device)
-    
-    
+        
     print(f'The number of parameters of the model are: {count_parameters(model)}')
-    
-    from sklearn.utils.class_weight import compute_class_weight
-    import numpy as np
+
 
     if not multilabel:
         # Assuming train_loader.dataset.labels is a one-hot representation
@@ -612,7 +613,10 @@ def train_early_fusion(train_loader, test_loader, output_size, num_epochs=5, mul
     else:
         criterion = nn.CrossEntropyLoss(weight=class_weights)
         
-    optimizer = optim.AdamW(model.parameters(), lr=lr)
+    if adam:
+        optimizer = optim.Adam(model.parameters(), lr=lr)
+    else:
+        optimizer = optim.AdamW(model.parameters(), lr=lr)
 
     train_accuracy_list = []
     test_accuracy_list = []
@@ -726,7 +730,7 @@ def train_early_fusion(train_loader, test_loader, output_size, num_epochs=5, mul
             
 
 # Function to train late fusion model (similar changes)
-def train_late_fusion(train_loader, test_loader, output_size, num_epochs=5, multilabel=True, report=False, lr=0.001):
+def train_late_fusion(train_loader, test_loader, output_size, num_epochs=5, multilabel=True, report=False, lr=0.001, adam=False):
     """
     Train a Late Fusion Model.
 
@@ -755,9 +759,6 @@ def train_late_fusion(train_loader, test_loader, output_size, num_epochs=5, mult
     model.to(device)
     
     print(f'The number of parameters of the model are: {count_parameters(model)}')
-    
-    from sklearn.utils.class_weight import compute_class_weight
-    import numpy as np
 
     if not multilabel:
         # Assuming train_loader.dataset.labels is a one-hot representation
@@ -774,7 +775,10 @@ def train_late_fusion(train_loader, test_loader, output_size, num_epochs=5, mult
     else:
         criterion = nn.CrossEntropyLoss(weight=class_weights)
         
-    optimizer = optim.AdamW(model.parameters(), lr=lr)
+    if adam:
+        optimizer = optim.Adam(model.parameters(), lr=lr)
+    else:
+        optimizer = optim.AdamW(model.parameters(), lr=lr)
 
     train_accuracy_list = []
     test_accuracy_list = []
