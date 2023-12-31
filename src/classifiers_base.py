@@ -559,7 +559,7 @@ def test_model(y_test, y_pred):
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
     
-def train_early_fusion(train_loader, test_loader, output_size, num_epochs=5, multilabel=True, report=False, lr=0.001, adam=False):
+def train_early_fusion(train_loader, test_loader, output_size, num_epochs=5, multilabel=True, report=False, lr=0.001, adam=False, set_weights=True):
     """
     Train an Early Fusion Model.
 
@@ -589,23 +589,24 @@ def train_early_fusion(train_loader, test_loader, output_size, num_epochs=5, mul
         
     print(f'The number of parameters of the model are: {count_parameters(model)}')
 
+    if set_weights:
+        if not multilabel:
+            # Assuming train_loader.dataset.labels is a one-hot representation
+            class_indices = np.argmax(train_loader.dataset.labels, axis=1)
 
-    if not multilabel:
-        # Assuming train_loader.dataset.labels is a one-hot representation
-        class_indices = np.argmax(train_loader.dataset.labels, axis=1)
+            # Compute class weights using class indices
+            class_weights = compute_class_weight('balanced', classes=np.unique(class_indices), y=class_indices)
+            class_weights = torch.tensor(class_weights, dtype=torch.float32)
+        else:
+            class_counts = train_loader.dataset.labels.sum(axis=0)
+            total_samples = len(train_loader.dataset.labels)
+            num_classes = train_loader.dataset.labels.shape[1]
+            class_weights = total_samples / (num_classes * class_counts)
 
-        # Compute class weights using class indices
-        class_weights = compute_class_weight('balanced', classes=np.unique(class_indices), y=class_indices)
-        class_weights = torch.tensor(class_weights, dtype=torch.float32)
+            # Convert class_weights to a PyTorch tensor
+            class_weights = torch.tensor(class_weights, dtype=torch.float32)
     else:
-        class_counts = train_loader.dataset.labels.sum(axis=0)
-        total_samples = len(train_loader.dataset.labels)
-        num_classes = train_loader.dataset.labels.shape[1]
-        class_weights = total_samples / (num_classes * class_counts)
-
-        # Convert class_weights to a PyTorch tensor
-        class_weights = torch.tensor(class_weights, dtype=torch.float32)
-
+        class_weights = None
     if multilabel:
         criterion = nn.BCEWithLogitsLoss(weight=class_weights)
     elif(output_size == 1):
