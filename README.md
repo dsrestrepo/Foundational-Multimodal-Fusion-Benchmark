@@ -32,8 +32,8 @@ Before running the code, ensure you have the following installed:
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/dsrestrepo/Foundational-Multimodal-Fusion-Framework.git
-cd Foundational-Multimodal-Fusion-Framework
+git clone https://github.com/dsrestrepo/Foundational-Multimodal-Fusion-Benchmark.git
+cd Foundational-Multimodal-Fusion-Benchmark
 ```
 
 2. Create a virtual environment (optional but recommended):
