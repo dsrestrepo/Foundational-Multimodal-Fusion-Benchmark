@@ -559,7 +559,7 @@ def test_model(y_test, y_pred):
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
     
-def train_early_fusion(train_loader, test_loader, output_size, num_epochs=5, multilabel=True, report=False, lr=0.001, adam=False, set_weights=True):
+def train_early_fusion(train_loader, test_loader, output_size, num_epochs=5, multilabel=True, report=False, lr=0.001, adam=False, set_weights=True, freeze_backbone=True):
     """
     Train an Early Fusion Model.
 
@@ -581,7 +581,7 @@ def train_early_fusion(train_loader, test_loader, output_size, num_epochs=5, mul
     
     text_model = TextModel()
     image_model = VisionModel()
-    model = EarlyFusionModel(text_model=text_model, image_model=image_model, output_size=output_size)
+    model = EarlyFusionModel(text_model=text_model, image_model=image_model, output_size=output_size, freeze_backbone=freeze_backbone)
     # Wrap the model with DataParallel
     model = nn.DataParallel(model)
     
@@ -731,7 +731,7 @@ def train_early_fusion(train_loader, test_loader, output_size, num_epochs=5, mul
             
 
 # Function to train late fusion model (similar changes)
-def train_late_fusion(train_loader, test_loader, output_size, num_epochs=5, multilabel=True, report=False, lr=0.001, adam=False, set_weights=True):
+def train_late_fusion(train_loader, test_loader, output_size, num_epochs=5, multilabel=True, report=False, lr=0.001, adam=False, set_weights=True, freeze_backbone=True):
     """
     Train a Late Fusion Model.
 
@@ -753,7 +753,7 @@ def train_late_fusion(train_loader, test_loader, output_size, num_epochs=5, mult
     
     text_model = TextModel()
     image_model = VisionModel()
-    model = LateFusionModel(text_model=text_model, image_model=image_model, output_size=output_size)
+    model = LateFusionModel(text_model=text_model, image_model=image_model, output_size=output_size, freeze_backbone=freeze_backbone)
     # Wrap the model with DataParallel
     model = nn.DataParallel(model)
     
