@@ -37,7 +37,9 @@ import multiprocessing
 
 import time
 
-import torch.autograd.profiler as profiler
+import torch.profiler as profiler
+#from torch.profiler import profile as profiler
+from torch.profiler import record_function, ProfilerActivity
 
 import warnings
 # Suppress all warnings
@@ -562,7 +564,7 @@ def test_model(y_test, y_pred):
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
     
-def train_early_fusion(train_loader, test_loader, output_size, num_epochs=5, multilabel=True, report=False, lr=0.001, adam=False, set_weights=True):
+def train_early_fusion(train_loader, test_loader, output_size, num_epochs=5, multilabel=True, report=False, lr=0.001, adam=False, set_weights=True, freeze_backbone=True):
     """
     Train an Early Fusion Model.
 
@@ -584,7 +586,7 @@ def train_early_fusion(train_loader, test_loader, output_size, num_epochs=5, mul
     
     text_model = TextModel()
     image_model = VisionModel()
-    model = EarlyFusionModel(text_model=text_model, image_model=image_model, output_size=output_size)
+    model = EarlyFusionModel(text_model=text_model, image_model=image_model, output_size=output_size, freeze_backbone=freeze_backbone)
     # Wrap the model with DataParallel
     model = nn.DataParallel(model)
     
@@ -631,7 +633,7 @@ def train_early_fusion(train_loader, test_loader, output_size, num_epochs=5, mul
     total_training_time = 0
     total_inference_time = 0
     
-    with profiler.profile(record_shapes=True, use_cuda=False) as prof:
+    with profiler.profile(activities=[ProfilerActivity.CPU], profile_memory=True, record_shapes=True, use_cuda=False) as prof:
 
         for epoch in range(num_epochs):
 
@@ -696,7 +698,7 @@ def train_early_fusion(train_loader, test_loader, output_size, num_epochs=5, mul
             
     # Print the profiler results
     print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=10))
-
+    #print(prof.key_averages().table(sort_by="cpu_memory_usage", row_limit=10))
     # Calculate average training time per epoch
     average_training_time_per_epoch = total_training_time / num_epochs
 
@@ -744,7 +746,7 @@ def train_early_fusion(train_loader, test_loader, output_size, num_epochs=5, mul
             
 
 # Function to train late fusion model (similar changes)
-def train_late_fusion(train_loader, test_loader, output_size, num_epochs=5, multilabel=True, report=False, lr=0.001, adam=False, set_weights=True):
+def train_late_fusion(train_loader, test_loader, output_size, num_epochs=5, multilabel=True, report=False, lr=0.001, adam=False, set_weights=True, freeze_backbone=True):
     """
     Train a Late Fusion Model.
 
@@ -766,7 +768,7 @@ def train_late_fusion(train_loader, test_loader, output_size, num_epochs=5, mult
     
     text_model = TextModel()
     image_model = VisionModel()
-    model = LateFusionModel(text_model=text_model, image_model=image_model, output_size=output_size)
+    model = LateFusionModel(text_model=text_model, image_model=image_model, output_size=output_size, freeze_backbone=freeze_backbone)
     # Wrap the model with DataParallel
     model = nn.DataParallel(model)
     
@@ -813,7 +815,7 @@ def train_late_fusion(train_loader, test_loader, output_size, num_epochs=5, mult
     total_training_time = 0
     total_inference_time = 0
 
-    with profiler.profile(record_shapes=True, use_cuda=False) as prof:
+    with profiler.profile(activities=[ProfilerActivity.CPU], profile_memory=True, record_shapes=True, use_cuda=False) as prof:
         for epoch in range(num_epochs):
 
             # Start measuring training time
@@ -875,6 +877,7 @@ def train_late_fusion(train_loader, test_loader, output_size, num_epochs=5, mult
             
     # Print the profiler results
     print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=10))
+    # print(prof.key_averages().table(sort_by="cpu_memory_usage", row_limit=10))
     
     # Calculate average training time per epoch
     average_training_time_per_epoch = total_training_time / num_epochs

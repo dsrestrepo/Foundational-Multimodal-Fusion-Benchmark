@@ -30,7 +30,9 @@ from sklearn.metrics import RocCurveDisplay
 
 import time
 
-import torch.autograd.profiler as profiler
+import torch.profiler as profiler
+#from torch.profiler import profile as profiler
+from torch.profiler import record_function, ProfilerActivity
 
 import warnings
 # Suppress all warnings
@@ -557,7 +559,7 @@ def train_early_fusion(train_loader, test_loader, text_input_size, image_input_s
     total_inference_time = 0
     
     
-    with profiler.profile(record_shapes=True, use_cuda=False) as prof:
+    with profiler.profile(activities=[ProfilerActivity.CPU], profile_memory=True, record_shapes=True, use_cuda=False) as prof:
         for epoch in range(num_epochs):
 
             # Start measuring training time
@@ -592,6 +594,7 @@ def train_early_fusion(train_loader, test_loader, text_input_size, image_input_s
                             preds = torch.sigmoid(outputs)
                         else:
                             preds = torch.softmax(outputs, dim=1)
+                            
                         y_true.extend(labels.numpy())
                         y_pred.extend(preds.numpy())
 
@@ -620,6 +623,7 @@ def train_early_fusion(train_loader, test_loader, text_input_size, image_input_s
             
     # Print the profiler results
     print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=10))
+    #print(prof.key_averages().table(sort_by="cpu_memory_usage", row_limit=10))
     
 
     # Calculate average training time per epoch
@@ -740,7 +744,7 @@ def train_late_fusion(train_loader, test_loader, text_input_size, image_input_si
     total_training_time = 0
     total_inference_time = 0
     
-    with profiler.profile(record_shapes=True, use_cuda=False) as prof:
+    with profiler.profile(activities=[ProfilerActivity.CPU], profile_memory=True, record_shapes=True, use_cuda=False) as prof:
 
         for epoch in range(num_epochs):
 
@@ -804,7 +808,7 @@ def train_late_fusion(train_loader, test_loader, text_input_size, image_input_si
                 
     # Print the profiler results
     print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=10))
-    
+    #print(prof.key_averages().table(sort_by="cpu_memory_usage", row_limit=10))
 
     # Calculate average training time per epoch
     average_training_time_per_epoch = total_training_time / num_epochs
