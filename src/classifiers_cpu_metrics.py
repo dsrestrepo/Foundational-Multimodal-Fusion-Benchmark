@@ -998,7 +998,7 @@ def epoch_memory_usage(train_loader, test_loader, model):
 
             
 # Function to Calculate memory ussage per epoch
-def calculate_memory(train_loader, test_loader, output_size, freeze_backbone=True):
+def calculate_memory(train_loader, test_loader, text_input_size, image_input_size, output_size, freeze_backbone=True):
     """
     Train a Late Fusion Model.
 
@@ -1018,18 +1018,14 @@ def calculate_memory(train_loader, test_loader, output_size, freeze_backbone=Tru
     
     print('Early fusion:')
     
-    text_model = TextModel()
-    image_model = VisionModel()
-    model = EarlyFusionModel(text_model=text_model, image_model=image_model, output_size=output_size, freeze_backbone=freeze_backbone)
+    model = EarlyFusionModel(text_input_size=text_input_size, image_input_size=image_input_size, output_size=output_size)
     
     # Calculate memory usages
     epoch_memory_usage(train_loader, test_loader, model)
     
-    
+    print('')
     print('Late fusion:')
     
-    text_model = TextModel()
-    image_model = VisionModel()
-    model = LateFusionModel(text_model=text_model, image_model=image_model, output_size=output_size, freeze_backbone=freeze_backbone)
+    model = LateFusionModel(text_input_size=text_input_size, image_input_size=image_input_size, output_size=output_size)
     
     epoch_memory_usage(train_loader, test_loader, model)

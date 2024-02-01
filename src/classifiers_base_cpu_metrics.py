@@ -1034,7 +1034,7 @@ def calculate_memory(train_loader, test_loader, output_size, freeze_backbone=Tru
     # Calculate memory usages
     epoch_memory_usage(train_loader, test_loader, model)
     
-    
+    print('')
     print('Late fusion:')
     
     text_model = TextModel()
