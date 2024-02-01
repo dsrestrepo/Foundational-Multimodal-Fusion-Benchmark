@@ -463,6 +463,33 @@ class LateFusionModel(nn.Module):
         x = self.fc2(x)
         return x
 
+def model_memory_usage(model, input_dtype=torch.float32):
+    total_params = sum(p.numel() for p in model.parameters())
+    dtype_size = torch.tensor([], dtype=input_dtype).element_size()  # Size of the data type
+    total_memory = total_params * dtype_size  # Total memory in bytes
+    return total_memory / (1024 ** 2)
+
+def batch_memory_usage(dataloader, input_dtype=torch.float32, is_dataloader=False):
+    if not is_dataloader:
+        batch = next(iter(dataloader))  # Get one batch from the dataloader
+    else:
+        batch = dataloader
+    total_memory = 0  # Initialize total memory usage
+
+    # Iterate over each item in the batch dictionary
+    for key, item in batch.items():
+        if isinstance(item, torch.Tensor):
+            item_memory = item.numel() * item.element_size()  # Memory for this item
+            total_memory += item_memory
+        elif isinstance(item, (list, tuple)):
+            # Handle case where item might be a list or tuple of tensors
+            for sub_item in item:
+                if isinstance(sub_item, torch.Tensor):
+                    item_memory = sub_item.numel() * sub_item.element_size()
+                    total_memory += item_memory
+        # Extend this conditional block to handle other types if necessary
+
+    return total_memory / (1024 ** 2)  # Convert to megabytes
 
     
 def test_model(y_test, y_pred):
@@ -587,6 +614,14 @@ def train_early_fusion(train_loader, test_loader, output_size, num_epochs=5, mul
     text_model = TextModel()
     image_model = VisionModel()
     model = EarlyFusionModel(text_model=text_model, image_model=image_model, output_size=output_size, freeze_backbone=freeze_backbone)
+    
+    # Calculate memory usages
+    model_memory = model_memory_usage(model)
+    batch_memory = batch_memory_usage(train_loader)
+
+    print(f"Model Memory Usage: {model_memory:.2f} MB")
+    print(f"Single Batch Memory Usage: {batch_memory:.2f} MB")
+
     # Wrap the model with DataParallel
     model = nn.DataParallel(model)
     
@@ -769,6 +804,12 @@ def train_late_fusion(train_loader, test_loader, output_size, num_epochs=5, mult
     text_model = TextModel()
     image_model = VisionModel()
     model = LateFusionModel(text_model=text_model, image_model=image_model, output_size=output_size, freeze_backbone=freeze_backbone)
+    
+    model_memory = model_memory_usage(model)
+    batch_memory = batch_memory_usage(train_loader)
+
+    print(f"Model Memory Usage: {model_memory:.2f} MB")
+    print(f"Single Batch Memory Usage: {batch_memory:.2f} MB")
     # Wrap the model with DataParallel
     model = nn.DataParallel(model)
     
@@ -926,3 +967,78 @@ def train_late_fusion(train_loader, test_loader, output_size, num_epochs=5, mult
                 #test_model(y_true, (y_pred > 0.5).astype(int))
             
             test_model(y_true, y_pred_one_hot)
+
+
+def epoch_memory_usage(train_loader, test_loader, model):
+    model_memory = model_memory_usage(model)
+    batch_memory_train = 0
+    batch_memory_test = 0
+    num_batches_train = 0
+    num_batches_test = 0
+
+    for batch in train_loader:
+        batch_memory_train += batch_memory_usage(batch, is_dataloader=True)
+        num_batches_train += 1
+    
+    for test_batch in test_loader:
+        batch_memory_test += batch_memory_usage(test_batch, is_dataloader=True)
+        num_batches_test += 1
+    
+
+    average_batch_memory_train = batch_memory_train / num_batches_train
+    average_batch_memory_test = batch_memory_test / num_batches_train
+    total_epoch_memory_train = average_batch_memory_train * num_batches_train
+    total_epoch_memory_test = average_batch_memory_test * num_batches_test
+    Test = average_batch_memory_test * num_batches_test
+    
+    
+
+    print(f"Average Memory per Batch in Train: {average_batch_memory_train:.2f} MB")
+    print(f"Total Memory Usage per Epoch Train: {total_epoch_memory_train:.2f} MB (excluding model parameters)")
+    
+    print('Test:')
+    print(f"Average Memory per Batch in Test: {average_batch_memory_test:.2f} MB")
+    print(f"Total Memory Usage per Epoch Test: {total_epoch_memory_test:.2f} MB (excluding model parameters)")
+    
+    print('Model: ')
+    print(f"Model Memory Usage: {model_memory:.2f} MB")
+
+    return total_epoch_memory_train + model_memory, total_epoch_memory_test + model_memory 
+
+            
+# Function to Calculate memory ussage per epoch
+def calculate_memory(train_loader, test_loader, output_size, freeze_backbone=True):
+    """
+    Train a Late Fusion Model.
+
+    Args:
+    - train_loader (DataLoader): DataLoader for the training set.
+    - test_loader (DataLoader): DataLoader for the testing set.
+    - text_input_size (int): Dimension of the text input.
+    - image_input_size (int): Dimension of the image input.
+    - output_size (int): Dimension of the output.
+    - num_epochs (int): Number of training epochs.
+    - multilabel (bool): Flag for multilabel classification.
+    - report (bool): Flag to generate a classification report, confusion matrix, and ROC curve.
+
+    Example:
+    train_late_fusion(train_loader, test_loader, text_input_size=512, image_input_size=256, output_size=10, num_epochs=5, multilabel=True)
+    """
+    
+    print('Early fusion:')
+    
+    text_model = TextModel()
+    image_model = VisionModel()
+    model = EarlyFusionModel(text_model=text_model, image_model=image_model, output_size=output_size, freeze_backbone=freeze_backbone)
+    
+    # Calculate memory usages
+    epoch_memory_usage(train_loader, test_loader, model)
+    
+    
+    print('Late fusion:')
+    
+    text_model = TextModel()
+    image_model = VisionModel()
+    model = LateFusionModel(text_model=text_model, image_model=image_model, output_size=output_size, freeze_backbone=freeze_backbone)
+    
+    epoch_memory_usage(train_loader, test_loader, model)
