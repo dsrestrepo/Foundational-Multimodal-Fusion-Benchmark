@@ -254,8 +254,6 @@ class FoundationalCVModel(torch.nn.Module):
 
         # Return the features
         return features
-    
-    
 
 class FoundationalCVModelWithClassifier(torch.nn.Module):
     """
