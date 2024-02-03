@@ -48,12 +48,14 @@ def custom_collate_fn(batch, processor, model_type):
     if model_type.lower() == 'blip2':
         texts = [f"Question: {item['text']} Answer:" for item in batch]
     else:
-        texts = [item["text"] for item in batch]
+        texts = [f"<image>\nUSER: {item['text']}\nASSISTANT:" for item in batch]
+
     images = [item["image"] for item in batch]
     image_paths = [item["image_path"] for item in batch]
     processed = processor(text=texts, images=images, return_tensors="pt", padding=True, truncation=True)
     processed['image_paths'] = image_paths
     return processed
+
 
 # Functions for getting embeddings
 def get_blip2_embeddings(dataframe, batch_size, image_col_name, text_col_name, image_path, output_dir, output_file, processor, model):
@@ -76,7 +78,6 @@ def get_blip2_embeddings(dataframe, batch_size, image_col_name, text_col_name, i
         #batch_inputs = {k: v.to(device) for k, v in batch.items() if k != 'image_paths'}
         batch_inputs = {k: v for k, v in batch.items() if k != 'image_paths'}
         image_paths_list.extend(batch['image_paths'])
-
         with torch.no_grad():
             outputs = model(**batch_inputs)
         
@@ -99,14 +100,17 @@ def get_blip2_embeddings(dataframe, batch_size, image_col_name, text_col_name, i
 
     # Concatenate embeddings and image paths from all processes
     if dist.get_rank() == 0:  # Only the main process will save the output
+        
+        all_image_paths = [item for sublist in all_image_paths for item in sublist]
+        all_embeddings = [batch for sublist in all_embeddings for batch in sublist]
+        
         embeddings = np.concatenate(all_embeddings, axis=0)
-        image_paths = sum(all_image_paths, [])  # Flatten the list of lists
 
         embeddings_df = pd.DataFrame(embeddings, columns=[f'embedding_{i}' for i in range(embeddings.shape[1])])
-        embeddings_df['image_path'] = image_paths
+        embeddings_df[image_col_name] = all_image_paths
 
         # Merge the original dataframe with the embeddings dataframe on the image path
-        concatenated_df = pd.merge(dataframe, embeddings_df, on='image_path', how='left')
+        concatenated_df = pd.merge(dataframe, embeddings_df, on=image_col_name, how='left')
 
         # Save the final DataFrame to a CSV file
         output_path = os.path.join(output_dir, output_file)
@@ -136,6 +140,7 @@ def get_llava_embeddings(dataframe, batch_size, image_col_name, text_col_name, i
         
         with torch.no_grad():
             outputs = model(**batch_inputs, output_hidden_states=True)
+            
         
         # Extract embeddings from the last hidden state and perform mean pooling
         last_hidden_state = outputs.hidden_states[-1]  # Shape: (batch_size, sequence_length, hidden_size)
@@ -151,14 +156,22 @@ def get_llava_embeddings(dataframe, batch_size, image_col_name, text_col_name, i
 
     # Concatenate embeddings and image paths from all processes
     if dist.get_rank() == 0:  # Only the main process will save the output
+        
+        all_image_paths = [item for sublist in all_image_paths for item in sublist]
+        
+        all_embeddings = [batch for sublist in all_embeddings for batch in sublist]
+
+        
         embeddings = np.concatenate(all_embeddings, axis=0)
-        image_paths = sum(all_image_paths, [])  # Flatten the list of lists
+        
+        print(embeddings.shape)
+        print(len(all_image_paths))
 
         embeddings_df = pd.DataFrame(embeddings, columns=[f'embedding_{i}' for i in range(embeddings.shape[1])])
-        embeddings_df['image_path'] = image_paths
+        embeddings_df[image_col_name] = all_image_paths
 
         # Merge the original dataframe with the embeddings dataframe on the image path
-        concatenated_df = pd.merge(dataframe, embeddings_df, on='image_path', how='left')
+        concatenated_df = pd.merge(dataframe, embeddings_df, on=image_col_name, how='left')
 
         # Save the final DataFrame to a CSV file
         output_path = os.path.join(output_dir, output_file)
@@ -181,7 +194,6 @@ def main():
     # Load dataframe
     labels_path = os.path.join(args.dataset_path, args.labels)
     images_path = os.path.join(args.dataset_path, args.image_dir)
-    df = pd.read_csv(labels_path)
     df = preprocess_df(df=pd.read_csv(labels_path), image_columns=args.image_col, images_path=images_path)
 
 
