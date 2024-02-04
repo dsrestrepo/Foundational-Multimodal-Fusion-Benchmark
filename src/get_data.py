@@ -12,7 +12,8 @@ import numpy as np
 from urllib.error import HTTPError
 import time
 import matplotlib.pyplot as plt
-
+import subprocess
+import getpass
 
 
 ########### DAQUAR ###########
@@ -661,5 +662,184 @@ def preprocess_recipes5k(root_dir='dataset/'):
     # Save the resulting DataFrame as labels.csv
     output_csv_path = os.path.join(root_dir, 'labels.csv')
     final_df.to_csv(output_csv_path, index=False)
+
+
+########### BRSET ###########
+def organize_brset_dataset(output_dir):
+    """
+    Organizes the downloaded dataset by moving and renaming files and directories.
+
+    This function performs the following tasks:
+    1. Moves the 'labels.csv' file from its original location to the 'data/' directory.
+    2. Renames the 'fundus_photos' directory to 'images' within the 'data/' directory.
+    3. Removes the 'physionet.org' directory and its contents, cleaning up the directory structure.
+
+    Parameters:
+    output_dir (str): The path to the root directory where the dataset was downloaded.
+
+    Example:
+    organize_brset_dataset("data/")
+
+    This example would move 'labels.csv' to 'data/' and rename 'fundus_photos' to 'images' within 'data/'.
+    It would also remove the 'physionet.org' directory and its contents.
+
+    Note: Make sure to call this function after downloading the dataset using 'download_dataset'.
+    """
+
+    # Move labels.csv to the data directory
+    shutil.move(os.path.join(output_dir, "physionet.org/files/brazilian-ophthalmological/1.0.0/labels.csv"), os.path.join(output_dir, "labels.csv"))
+
+    # Rename fundus_photos to images
+    shutil.move(os.path.join(output_dir, "physionet.org/files/brazilian-ophthalmological/1.0.0/fundus_photos"), os.path.join(output_dir, "images"))
+
+    # Remove the physionet.org directory and its contents
+    shutil.rmtree(os.path.join(output_dir, "physionet.org"))
+
+
+def download_dataset(output_dir="data/", url="https://physionet.org/files/brazilian-ophthalmological/1.0.0/"):
+    """
+    Downloads a dataset from a specified URL and organizes it.
+
+    This function performs the following tasks:
+    1. Downloads a dataset from the provided URL using the 'wget' command.
+    2. Prompts the user for their PhysioNet username and securely enters their password.
+    3. Organizes the downloaded dataset by moving and renaming files and directories using the 'organize_dataset' function.
+
+    Parameters:
+    output_dir (str, optional): The directory where the dataset will be downloaded and organized. Defaults to "data/".
+    url (str, optional): The URL of the dataset to be downloaded. Defaults to the Brazilian Ophthalmological Dataset on PhysioNet.
+
+    Example:
+    download_dataset(output_dir="data/", url="https://physionet.org/files/brazilian-ophthalmological/1.0.0/")
+
+    This example would download the Brazilian Ophthalmological Dataset from the provided URL into the "data/" directory.
+    It would prompt the user for their PhysioNet username and securely enter their password.
+    After downloading, it would organize the dataset using the 'organize_dataset' function.
+
+    Note: You need to have 'wget' and 'shutil' installed to use this function.
+    """
+
+    # Ensure the output directory exists
+    os.makedirs(output_dir, exist_ok=True)
+
+    username = input("Please provide your physionet's username: ")
+    # Prompt the user for the password without displaying it
+    password = getpass.getpass("Please provide your physionet's password: ")
+
+    # Run the wget command to download the dataset
+    # command = f'wget -r -N -c -np --user {username} --password {password} {url} -P {output_dir}'
+    command = f'wget -r -c -np --user {username} --password {password} -nc {url} -P {output_dir}'
+    try:
+        subprocess.run(command, shell=True, check=True)
+        print("Dataset downloaded successfully.")
+        
+        organize_brset_dataset(output_dir)
+
+    except subprocess.CalledProcessError as e:
+        print(f"Error: {e}")
+
+
+def check_columns(row, columns):
+    for column in columns:
+        if row[column] != 0:
+            return 'abnormal'
+    return 'normal'
+
+
+def get_brset(data_dir, download=False, info=False):
+    """
+    Reads the dataset CSV file and provides information about the DataFrame.
+
+    Parameters:
+    data_dir (str): The directory where the dataset is stored.
+    download (bool, optional): Whether to download the dataset if it's not already available. Defaults to False.
+
+    Returns:
+    pd.DataFrame: The loaded DataFrame containing dataset information.
+
+    Example:
+    df = get_brset("data/", download=True)
+
+    This example would download the dataset if not already available, then load the 'labels.csv' file from the specified directory.
+    The resulting DataFrame will contain information about the dataset.
+
+    Note: Make sure to have the 'labels.csv' file in the specified directory.
+    """
+
+    if download:
+        download_dataset(output_dir=data_dir)
+
+    print(f'loading csv file in {data_dir}/labels.csv')
+    df_path = os.path.join(data_dir, 'labels.csv')
+    df = pd.read_csv(df_path)
+
+    # Provide information about the DataFrame
+    if info:
+        print(f"Number of Rows: {df.shape[0]}")
+        print(f"Number of Columns: {df.shape[1]}")
+        print(f"Column Names: {', '.join(df.columns)}")
+        print("\nInfo:")
+        print(df.info())
+
+        #print("\nDescription:")
+        #print(df.describe())
+
+    columns = ['diabetic_retinopathy', 'macular_edema', 'scar', 'nevus',
+               'amd', 'vascular_occlusion', 'hypertensive_retinopathy',
+               'drusens', 'hemorrhage', 'retinal_detachment',
+               'myopic_fundus', 'increased_cup_disc', 'other'
+              ]
+
+    df['normality'] = df.apply(check_columns, args=(columns,),  axis=1)
+
+    return df
+
+def brset_preprocessing(dataset_path, filename='labels.csv', output_filename='labels.csv'):
+    # Load the dataset
+    df = pd.read_csv(f'{dataset_path}/{filename}')
+
+    # Define the conversion functions
+    def convert_sex(sex):
+        return 'male' if sex == 1 else 'female' if sex == 2 else 'no sex reported'
+    
+    def convert_eye(eye):
+        return 'right' if eye == 1 else 'left' if eye == 2 else 'no eye reported'
+    
+    def convert_presence(presence):
+        return 'present' if presence == 1 else 'absent'
+    
+    # Create the 'text' column with conditions
+    df['text'] = df.apply(lambda row: (
+        f"An image from the {convert_eye(row['exam_eye'])} eye of a {convert_sex(row['patient_sex'])} patient, "
+        f"aged {'no age reported' if pd.isnull(row['patient_age']) else str(float(str(row['patient_age']).replace('O', '0').replace(',', '.')))} years, "
+        f"{'with no comorbidities reported' if pd.isnull(row['comorbidities']) else 'with comorbidities: ' + row['comorbidities']}, "
+        f"{'with no diabetes duration reported' if pd.isnull(row['diabetes_time_y']) or row['diabetes_time_y'] == 'Não' else 'diabetes diagnosed for ' + str(float(str(row['diabetes_time_y']).replace('O', '0').replace(',', '.'))) + ' years'}, "
+        f"{'not using insulin' if row['insuline'] == 'no' else 'using insulin'}. "
+        f"The optic disc is {convert_presence(row['optic_disc'])}, vessels are {convert_presence(row['vessels'])}, "
+        f"and the macula is {convert_presence(row['macula'])}. "
+        f"Conditions include macular edema: {convert_presence(row['macular_edema'])}, scar: {convert_presence(row['scar'])}, "
+        f"nevus: {convert_presence(row['nevus'])}, amd: {convert_presence(row['amd'])}, vascular occlusion: {convert_presence(row['vascular_occlusion'])}, "
+        f"drusens: {convert_presence(row['drusens'])}, hemorrhage: {convert_presence(row['hemorrhage'])}, "
+        f"retinal detachment: {convert_presence(row['retinal_detachment'])}, myopic fundus: {convert_presence(row['myopic_fundus'])}, "
+        f"increased cup disc ratio: {convert_presence(row['increased_cup_disc'])}, and other conditions: {convert_presence(row['other'])}."
+    ), axis=1)
+
+    # Drop all columns except for 'image_id', 'DR_ICDR', and 'text'
+    df = df[['image_id', 'DR_ICDR', 'text']]
+
+    # Create DR_2 and DR_3 columns from DR_ICDR
+    df['DR_2'] = df['DR_ICDR'].apply(lambda x: 1 if x > 0 else 0)
+    df['DR_3'] = df['DR_ICDR'].apply(lambda x: 2 if x == 4 else (1 if x in [1, 2, 3] else 0))
+
+    # Create a 'split' column
+    df['split'] = 'train'  # Initialize all as 'train'
+    # Stratify split by 'DR_ICDR'
+    train_idx, test_idx = train_test_split(df.index, test_size=0.2, stratify=df['DR_ICDR'], random_state=42)
+    df.loc[test_idx, 'split'] = 'test'  # Update 'split' for test set
+
+    # Save the processed dataframe to a new CSV file
+    df.to_csv(f'{dataset_path}/{output_filename}', index=False)
+
+    print(f"Processed dataset saved as {output_filename} in {dataset_path}")
 
 
