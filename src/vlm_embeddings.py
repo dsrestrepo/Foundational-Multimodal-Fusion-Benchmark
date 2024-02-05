@@ -114,7 +114,7 @@ def get_blip2_embeddings(dataframe, batch_size, image_col_name, text_col_name, i
 
         # Save the final DataFrame to a CSV file
         output_path = os.path.join(output_dir, output_file)
-        concatenated_df.to_csv(output_path, index=False)
+        concatenated_df.drop_duplicates().to_csv(output_path, index=False)
 
 
 def get_llava_embeddings(dataframe, batch_size, image_col_name, text_col_name, image_path, output_dir, output_file, processor, model):
@@ -175,8 +175,7 @@ def get_llava_embeddings(dataframe, batch_size, image_col_name, text_col_name, i
 
         # Save the final DataFrame to a CSV file
         output_path = os.path.join(output_dir, output_file)
-        concatenated_df.to_csv(output_path, index=False)
-
+        concatenated_df.drop_duplicates().to_csv(output_path, index=False)
 
 def main():
     parser = argparse.ArgumentParser(description="Extract embeddings from VLMs.")

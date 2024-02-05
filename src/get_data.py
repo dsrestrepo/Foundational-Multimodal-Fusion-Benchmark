@@ -843,3 +843,38 @@ def brset_preprocessing(dataset_path, filename='labels.csv', output_filename='la
     print(f"Processed dataset saved as {output_filename} in {dataset_path}")
 
 
+
+########### ham10000 ###########
+def preprocess_ham10000(path, dir1='HAM10000_images_part_1', dir2='HAM10000_images_part_2', labels='HAM10000_metadata.csv'):
+    # Create images directory if not exists
+    images_dir = os.path.join(path, 'images')
+    os.makedirs(images_dir, exist_ok=True)
+    
+    # Move images from dir1 and dir2 to images directory
+    for directory in [dir1, dir2]:
+        full_dir = os.path.join(path, directory)
+        for filename in os.listdir(full_dir):
+            shutil.move(os.path.join(full_dir, filename), images_dir)
+    
+    # Load CSV file
+    labels_path = os.path.join(path, labels)
+    df = pd.read_csv(labels_path)
+    
+    # Create 'text' column with prompt template
+    df['text'] = df.apply(lambda row: f"Patient diagnosed via {row['dx_type']}. Age: {'No data reported' if pd.isnull(row['age']) else int(row['age'])} years. Sex: {row['sex'] if pd.notnull(row['sex']) else 'No data reported'}. Localization: {row['localization'] if pd.notnull(row['localization']) else 'No data reported'}.", axis=1)
+    
+    # Split data into train and test sets, stratified by 'dx'
+    train_df, test_df = train_test_split(df, test_size=0.2, stratify=df['dx'], random_state=42)
+    train_df['split'] = 'train'
+    test_df['split'] = 'test'
+    
+    # Concatenate train and test dataframes
+    result_df = pd.concat([train_df, test_df])
+    
+    # Select relevant columns
+    result_df = result_df[['image_id', 'dx', 'text', 'split']]
+    
+    # Save the resulting CSV
+    result_df.to_csv(os.path.join(path, 'labels.csv'), index=False)
+    
+    return result_df
