@@ -143,7 +143,6 @@ def get_embeddings_df(batch_size=32, path="../BRSET/images/", dataset_name='BRSE
         'ImageName': all_img_names,
         'Embeddings': all_embeddings
     })
-    
 
     df_aux = pd.DataFrame(df['Embeddings'].tolist())
     df = pd.concat([df['ImageName'], df_aux], axis=1)
