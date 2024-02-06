@@ -289,7 +289,7 @@ class EarlyFusionModel(nn.Module):
         if isinstance(hidden, int):
             layers.append(nn.Linear(output_dim, hidden))
             layers.append(nn.ReLU())
-            layers.append(nn.Dropout(p=0.2))
+            #layers.append(nn.Dropout(p=0.2))
 
             output_dim = hidden
             
@@ -298,7 +298,7 @@ class EarlyFusionModel(nn.Module):
             for h in hidden:
                 layers.append(nn.Linear(output_dim, h))
                 layers.append(nn.ReLU())
-                layers.append(nn.Dropout(p=0.2))
+                #layers.append(nn.Dropout(p=0.2))
                 layers.append(nn.BatchNorm1d(h))
                 output_dim = h
         
@@ -360,7 +360,7 @@ class LateFusionModel(nn.Module):
         if isinstance(hidden, int):
             layers.append(nn.Linear(output_dim, hidden))
             layers.append(nn.ReLU())
-            layers.append(nn.Dropout(p=p))
+            #layers.append(nn.Dropout(p=p))
 
             output_dim = hidden
             
@@ -369,7 +369,7 @@ class LateFusionModel(nn.Module):
             for h in hidden:
                 layers.append(nn.Linear(output_dim, h))
                 layers.append(nn.ReLU())
-                layers.append(nn.Dropout(p=p))
+                #layers.append(nn.Dropout(p=p))
                 layers.append(nn.BatchNorm1d(h))
                 output_dim = h
         
@@ -540,10 +540,10 @@ def train_early_fusion(train_loader, test_loader, text_input_size, image_input_s
         
     # Calculate memory usages
     model_memory = model_memory_usage(model)
-    batch_memory = batch_memory_usage(train_loader)
+    #batch_memory = batch_memory_usage(train_loader)
 
     print(f"Model Memory Usage: {model_memory:.2f} MB")
-    print(f"Single Batch Memory Usage: {batch_memory:.2f} MB")
+    #print(f"Single Batch Memory Usage: {batch_memory:.2f} MB")
     
     model = nn.DataParallel(model)
     
@@ -731,10 +731,10 @@ def train_late_fusion(train_loader, test_loader, text_input_size, image_input_si
         
     # Calculate memory usages
     model_memory = model_memory_usage(model)
-    batch_memory = batch_memory_usage(train_loader)
+    #batch_memory = batch_memory_usage(train_loader)
 
     print(f"Model Memory Usage: {model_memory:.2f} MB")
-    print(f"Single Batch Memory Usage: {batch_memory:.2f} MB")
+    #print(f"Single Batch Memory Usage: {batch_memory:.2f} MB")
     
     model = nn.DataParallel(model)
     
