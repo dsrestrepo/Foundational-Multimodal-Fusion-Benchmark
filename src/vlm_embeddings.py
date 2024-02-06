@@ -194,6 +194,8 @@ def main():
     labels_path = os.path.join(args.dataset_path, args.labels)
     images_path = os.path.join(args.dataset_path, args.image_dir)
     df = preprocess_df(df=pd.read_csv(labels_path), image_columns=args.image_col, images_path=images_path)
+    
+    os.makedirs(args.output_dir, exist_ok=True)
 
 
     # Initialize model and processor

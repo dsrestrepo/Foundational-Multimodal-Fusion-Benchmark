@@ -401,7 +401,7 @@ class LLAMA:
 
     def get_embedding(self, text):
         
-        if  self.index % 5000 == 0:
+        if  self.index % 500 == 0:
             print(f'{self.index} Embeddings generated!')
             
         self.index += 1 
