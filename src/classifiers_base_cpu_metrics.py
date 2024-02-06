@@ -617,10 +617,10 @@ def train_early_fusion(train_loader, test_loader, output_size, num_epochs=5, mul
     
     # Calculate memory usages
     model_memory = model_memory_usage(model)
-    batch_memory = batch_memory_usage(train_loader)
+    #batch_memory = batch_memory_usage(train_loader)
 
     print(f"Model Memory Usage: {model_memory:.2f} MB")
-    print(f"Single Batch Memory Usage: {batch_memory:.2f} MB")
+    #print(f"Single Batch Memory Usage: {batch_memory:.2f} MB")
 
     # Wrap the model with DataParallel
     model = nn.DataParallel(model)
@@ -806,10 +806,10 @@ def train_late_fusion(train_loader, test_loader, output_size, num_epochs=5, mult
     model = LateFusionModel(text_model=text_model, image_model=image_model, output_size=output_size, freeze_backbone=freeze_backbone)
     
     model_memory = model_memory_usage(model)
-    batch_memory = batch_memory_usage(train_loader)
+    #batch_memory = batch_memory_usage(train_loader)
 
     print(f"Model Memory Usage: {model_memory:.2f} MB")
-    print(f"Single Batch Memory Usage: {batch_memory:.2f} MB")
+    #print(f"Single Batch Memory Usage: {batch_memory:.2f} MB")
     # Wrap the model with DataParallel
     model = nn.DataParallel(model)
     
