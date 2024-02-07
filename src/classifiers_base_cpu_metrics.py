@@ -316,7 +316,7 @@ class EarlyFusionModel(nn.Module):
         if isinstance(hidden, int):
             layers.append(nn.Linear(output_dim, hidden))
             layers.append(nn.ReLU())
-            layers.append(nn.Dropout(p=0.2))
+            #layers.append(nn.Dropout(p=0.2))
 
             output_dim = hidden
             
@@ -325,7 +325,7 @@ class EarlyFusionModel(nn.Module):
             for h in hidden:
                 layers.append(nn.Linear(output_dim, h))
                 layers.append(nn.ReLU())
-                layers.append(nn.Dropout(p=0.2))
+                #layers.append(nn.Dropout(p=0.2))
                 layers.append(nn.BatchNorm1d(h))
                 output_dim = h
         
@@ -424,7 +424,7 @@ class LateFusionModel(nn.Module):
         if isinstance(hidden, int):
             layers.append(nn.Linear(output_dim, hidden))
             layers.append(nn.ReLU())
-            layers.append(nn.Dropout(p=p))
+            #layers.append(nn.Dropout(p=p))
 
             output_dim = hidden
             
@@ -433,7 +433,7 @@ class LateFusionModel(nn.Module):
             for h in hidden:
                 layers.append(nn.Linear(output_dim, h))
                 layers.append(nn.ReLU())
-                layers.append(nn.Dropout(p=p))
+                #layers.append(nn.Dropout(p=p))
                 layers.append(nn.BatchNorm1d(h))
                 output_dim = h
         
