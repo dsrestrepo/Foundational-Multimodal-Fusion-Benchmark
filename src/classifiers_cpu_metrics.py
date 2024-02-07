@@ -277,9 +277,10 @@ class EarlyFusionModel(nn.Module):
     Example:
     model = EarlyFusionModel(text_input_size=512, image_input_size=256, output_size=10, hidden=[128, 64])
     """
-    def __init__(self, text_input_size, image_input_size, output_size, hidden=[128]):
+    def __init__(self, text_input_size, image_input_size, output_size, hidden=[128], p=0.2):
         super(EarlyFusionModel, self).__init__()
         
+        self.p = p
         output_dim = text_input_size + image_input_size
         
         # Initialize layers as an empty list
@@ -289,7 +290,7 @@ class EarlyFusionModel(nn.Module):
         if isinstance(hidden, int):
             layers.append(nn.Linear(output_dim, hidden))
             layers.append(nn.ReLU())
-            #layers.append(nn.Dropout(p=0.2))
+            layers.append(nn.Dropout(p=self.p))
 
             output_dim = hidden
             
@@ -298,7 +299,7 @@ class EarlyFusionModel(nn.Module):
             for h in hidden:
                 layers.append(nn.Linear(output_dim, h))
                 layers.append(nn.ReLU())
-                #layers.append(nn.Dropout(p=0.2))
+                layers.append(nn.Dropout(p=self.p))
                 layers.append(nn.BatchNorm1d(h))
                 output_dim = h
         
@@ -339,11 +340,13 @@ class LateFusionModel(nn.Module):
     Example:
     model = LateFusionModel(text_input_size=512, image_input_size=256, output_size=10, hidden_images=[64], hidden_text=[64])
     """
-    def __init__(self, text_input_size, image_input_size, output_size, hidden_images=[64], hidden_text=[64]):
+    def __init__(self, text_input_size, image_input_size, output_size, hidden_images=[64], hidden_text=[64], p=0.2):
         super(LateFusionModel, self).__init__()
         
-        self.text_fc, out_text = self._get_layers(text_input_size, hidden_text)
-        self.image_fc, out_images = self._get_layers(image_input_size, hidden_images)
+        self.p = p
+        
+        self.text_fc, out_text = self._get_layers(text_input_size, hidden_text, p=self.p)
+        self.image_fc, out_images = self._get_layers(image_input_size, hidden_images, p=self.p)
         
         #self.text_fc = nn.Linear(text_input_size, hidden_text)
         #self.image_fc = nn.Linear(image_input_size, hidden_images)
@@ -360,7 +363,7 @@ class LateFusionModel(nn.Module):
         if isinstance(hidden, int):
             layers.append(nn.Linear(output_dim, hidden))
             layers.append(nn.ReLU())
-            #layers.append(nn.Dropout(p=p))
+            layers.append(nn.Dropout(p=p))
 
             output_dim = hidden
             
@@ -369,7 +372,7 @@ class LateFusionModel(nn.Module):
             for h in hidden:
                 layers.append(nn.Linear(output_dim, h))
                 layers.append(nn.ReLU())
-                #layers.append(nn.Dropout(p=p))
+                layers.append(nn.Dropout(p=p))
                 layers.append(nn.BatchNorm1d(h))
                 output_dim = h
         
@@ -517,7 +520,7 @@ def test_model(y_test, y_pred):
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
     
-def train_early_fusion(train_loader, test_loader, text_input_size, image_input_size, output_size, num_epochs=5, multilabel=True, report=False, lr=0.001, set_weights=True, adam=False):
+def train_early_fusion(train_loader, test_loader, text_input_size, image_input_size, output_size, num_epochs=5, multilabel=True, report=False, lr=0.001, set_weights=True, adam=False, p=0.0):
     """
     Train an Early Fusion Model.
 
@@ -536,7 +539,7 @@ def train_early_fusion(train_loader, test_loader, text_input_size, image_input_s
     """
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = EarlyFusionModel(text_input_size=text_input_size, image_input_size=image_input_size, output_size=output_size)
+    model = EarlyFusionModel(text_input_size=text_input_size, image_input_size=image_input_size, output_size=output_size, p=p)
         
     # Calculate memory usages
     model_memory = model_memory_usage(model)
@@ -709,7 +712,7 @@ def train_early_fusion(train_loader, test_loader, text_input_size, image_input_s
             
 
 # Function to train late fusion model (similar changes)
-def train_late_fusion(train_loader, test_loader, text_input_size, image_input_size, output_size, num_epochs=5, multilabel=True, report=False, lr=0.001, set_weights=True, adam=False):
+def train_late_fusion(train_loader, test_loader, text_input_size, image_input_size, output_size, num_epochs=5, multilabel=True, report=False, lr=0.001, set_weights=True, adam=False, p=0.0):
     """
     Train a Late Fusion Model.
 
@@ -727,7 +730,7 @@ def train_late_fusion(train_loader, test_loader, text_input_size, image_input_si
     train_late_fusion(train_loader, test_loader, text_input_size=512, image_input_size=256, output_size=10, num_epochs=5, multilabel=True)
     """
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = LateFusionModel(text_input_size=text_input_size, image_input_size=image_input_size, output_size=output_size)
+    model = LateFusionModel(text_input_size=text_input_size, image_input_size=image_input_size, output_size=output_size, p=p)
         
     # Calculate memory usages
     model_memory = model_memory_usage(model)
