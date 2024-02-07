@@ -14,6 +14,42 @@ import time
 import matplotlib.pyplot as plt
 import subprocess
 import getpass
+# Data reading in Dataframe format and data preprocessing
+import pandas as pd
+from pandas import read_csv
+from pandas import DataFrame
+from pandas import concat
+
+# Data Visualization
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Read the images
+from skimage import io
+from skimage.transform import resize
+from skimage.util import crop
+
+# Linear algebra operations
+import numpy as np
+from skimage.io import imread, imsave
+
+# Machine learning models and preprocessing
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import StandardScaler
+from sklearn import preprocessing
+from sklearn.model_selection import train_test_split
+
+# Epiweek
+from epiweeks import Week, Year
+
+# Date
+from datetime import date as convert_to_date
+
+# OS
+import os
+
+import warnings
+warnings.filterwarnings('ignore')
 
 
 ########### DAQUAR ###########
@@ -878,3 +914,456 @@ def preprocess_ham10000(path, dir1='HAM10000_images_part_1', dir2='HAM10000_imag
     result_df.to_csv(os.path.join(path, 'labels.csv'), index=False)
     
     return result_df
+
+
+########### Colombian multi-modal data ###########
+def get_satellitedata(data_dir, url= "https://physionet.org/files/multimodal-satellite-data/1.0.0/", download=False, info=False):
+    """
+    Reads the dataset CSV file and provides information about the DataFrame.
+
+    Parameters:
+    data_dir (str): The directory where the dataset is stored.
+    download (bool, optional): Whether to download the dataset if it's not already available. Defaults to False.
+
+    Returns:
+    pd.DataFrame: The loaded DataFrame containing dataset information.
+
+    Example:
+    df = get_satellitedata("data/", download=True)
+
+    This example would download the dataset if not already available, then load the 'labels.csv' file from the specified directory.
+    The resulting DataFrame will contain information about the dataset.
+
+    Note: Make sure to have the 'labels.csv' file in the specified directory.
+    """
+
+    if download:
+        download_dataset(output_dir=data_dir, url=url)
+
+    data_dir = os.path.join(data_dir, "physionet.org/files/multimodal-satellite-data/1.0.0")
+    print(data_dir)
+    print(f'loading csv file in {data_dir}/metadata.csv')
+    df_path = os.path.join(data_dir, 'metadata.csv')
+    df = pd.read_csv(df_path)
+
+""" Get epiweek as column name """
+def get_epiweek(name):
+
+    # Get week
+    week = name.split('/')[1]
+    week = week.replace('w','')
+    week = int(week)
+
+    # Year
+    year = name.split('/')[0]
+    year = int(year)
+
+    epiweek = Week(year, week)
+
+    epiweek = str(epiweek)
+    epiweek = int(epiweek)
+
+    return epiweek
+
+
+
+""" Get labels"""
+def read_labels(path, Municipality = None):
+    df = pd.read_csv(path)
+    if df.shape[1] > 678:
+        df = pd.concat([df[['Municipality code', 'Municipality']], df.iloc[:,-676:]], axis=1)
+        cols = df.iloc[:, 2:].columns
+        new_cols = df.iloc[:, 2:].columns.to_series().apply(get_epiweek)
+        df = df.rename(columns=dict(zip(cols, new_cols)))
+
+    if 'Label_CSV_All_Municipality' in path:
+        # Get Columns
+        df = df[['epiweek', 'Municipality code', 'Municipality', 'final_cases_label']]
+
+        # change epiweek format
+        df.epiweek = df.epiweek.apply(get_epiweek)
+
+        # Remove duplicates
+        df = df[df.duplicated(['epiweek','Municipality code','Municipality']) == False]
+
+        # Replace Increase, decrease, stable to numerical:
+        """
+        - Decreased = 0
+        - Stable = 1
+        - Increased = 2
+        """
+        df.final_cases_label = df.final_cases_label.replace({'Decreased': 0, 'Stable': 1, 'Increased': 2})
+
+        # Create table
+        df = df.pivot(index=['Municipality code', 'Municipality'], columns='epiweek', values='final_cases_label')
+
+        # Reset Index:
+        df = df.reset_index()
+
+    if Municipality:
+
+        if type(Municipality) == str:
+            if Municipality.isdigit():
+                Municipality = int(Municipality)
+            else:
+                Municipality = int(codes[Municipality])
+
+        df = df[df['Municipality code'] == Municipality]
+        df.drop(columns=['Municipality'], inplace=True)
+        #df.rename(columns={'Municipality': 'Municipality Code'}, inplace=True)
+
+        df = df.set_index('Municipality code')
+        df = df.T
+
+        df.columns.name = None
+        df.index.name = None
+
+        df.columns = ['Labels']
+
+        df.index = pd.to_numeric(df.index)
+
+    return df
+
+""" Get Epiweek as int """
+def epiweek_from_date(image_date):
+    image_date = image_date.replace('/', '-')
+    date = image_date.split('-')
+    print(date)
+    year = ''.join(filter(str.isdigit, date[0]))
+    year = int(year)
+
+    # Get month as int
+
+    month = ''.join(filter(str.isdigit, date[1]))
+    month = int(month)
+
+    # Get day as int
+    day = ''.join(filter(str.isdigit, date[2]))
+    day = int(day)
+
+    # Get epiweek:
+    if year<1000:
+      month_t = month
+      year_t = year
+      day_t = day
+      month = year_t
+      day = month_t
+      year = day_t
+    date = convert_to_date(year, month, day)
+    epiweek = str(Week.fromdate(date))
+    epiweek = int(epiweek)
+
+    return epiweek
+
+
+def read_static(path, Municipality = None):
+    df = pd.read_csv(path)
+
+    df = df.iloc[:,np.r_[:2, 10:14, 28:53]]
+
+    pop_cols = ['Population2015', 'Population2016', 'Population2017', 'Population2018']
+    df['population'] = df[pop_cols].mean(axis=1)
+    df.drop(columns=pop_cols, inplace=True)
+
+    df['Date'] = '2016-02-02'
+
+    if 'Municipality code' in df.columns:
+        df.rename(columns={'Municipality code':'Municipality Code'}, inplace=True)
+
+    if df['Municipality Code'].dtype == 'int64':
+        if type(Municipality) == str:
+            if Municipality.isdigit():
+                Municipality = int(Municipality)
+            else:
+                Municipality = int(codes[Municipality])
+
+    if df['Municipality Code'].dtype == 'object':
+        if type(Municipality) == int or (type(Municipality) == np.int64):
+            Municipality = cities[Municipality]
+        elif (type(Municipality) == str) and (Municipality.isdigit()):
+            
+            Municipality = cities[int(Municipality)]
+
+    if Municipality:
+        df = df[df['Municipality Code'] == Municipality]
+
+    df.Date = df.Date.apply(epiweek_from_date)
+
+    df = df.sort_values(by=['Date'])
+
+    df = df.set_index('Date')
+
+    if Municipality:
+        df.drop(columns=['Municipality Code','Municipality'], inplace=True)
+
+    df.index.name = None
+
+    return df
+
+def get_temperature_and_precipitation(city, features):
+
+    if type(city) == int or (type(city) == np.int64):
+        city = cities[city]
+    elif type(city) == str and city.isdigit():
+        city = cities[int(city)]
+
+    code = get_code(city)
+
+    # Precipitation
+    for col in pd.read_csv(features[0]).columns:
+        if code in col:
+            column = col
+            continue
+    precipitation_df = pd.read_csv(features[0])[['LastDayWeek', column]]
+
+    # Temperature
+    for col in pd.read_csv(features[1]).columns:
+        if code in col:
+            column = col
+            continue
+    temperature_df = pd.read_csv(features[1])[['LastDayWeek', column]]
+
+    # Merge:
+    features_df = temperature_df.merge(precipitation_df, how='inner', on='LastDayWeek')
+
+    features_df['LastDayWeek'] = features_df['LastDayWeek'].apply(epiweek_from_date)
+
+    dictionary = {}
+
+    for cols in features_df.columns:
+        if 'temperature' in cols:
+            dictionary[cols] = 'temperature'
+        if 'precipitation' in cols:
+            dictionary[cols] = 'precipitation'
+    features_df.rename(columns=dictionary, inplace=True)
+
+    features_df = features_df.set_index('LastDayWeek')
+    features_df.index.name = None
+
+    return features_df
+
+""" Generate a CSV with the images: """
+def read_image(path, crop=True, target_size=(224,224,3), BANDS='RGB', BAND=0):
+    if os.path.isdir(path):
+        return np.nan
+    image_test = io.imread(path)
+
+    if crop:
+        x1 = target_size[0] // 2
+        x2 = target_size[0] - x1
+        y1 = target_size[1] // 2
+        y2 = target_size[1] - y1
+        x_mid = image_test.shape[0] // 2
+        y_mid = image_test.shape[0] // 2
+
+        # selecting part of the image only
+        image_arr = image_test[x_mid - x1:x_mid + x2,y_mid - y1:y_mid + y2, :]
+        image_arr = image_arr / 255.
+    else:
+        # Resize the image and normalize values
+        image_arr = resize(image_test, (target_size[0], target_size[1]),
+                           anti_aliasing=True)
+
+    # If just 3 bands get RGB
+    if target_size[2] == 3:
+        # RGB - 2, 3, 4
+        # CI - 3, 4, 8
+        # SWIR- 4, 8, 12
+        if BANDS == 'RGB':
+            image_arr = image_arr[:, :, [1,2,3]]
+        elif BANDS == 'SWIR':
+            image_arr = image_arr[:, :, [3,7,11]]
+        elif BANDS == 'CI':
+            image_arr = image_arr[:, :, [3,4,7]]
+    # One band:
+    elif target_size[2] == 1:
+        image_arr = image_arr[:, :, BAND]
+        image_arr = np.expand_dims(image_arr, axis=2)
+        image_arr = np.concatenate((image_arr, image_arr, image_arr), axis=2)
+    else:
+        image_arr = image_arr[:, :, :target_size[2]]
+
+    image_test = np.expand_dims(image_arr, axis=0)
+
+    return image_test
+
+def create_df(images_dir, MUNICIPALITY, target_size=(224, 224, 3), return_paths=None, dataset_path=None):
+    sub_dirs = os.listdir(images_dir)
+    sub_dirs = list(map(convert_code, sub_dirs))
+
+    if MUNICIPALITY in sub_dirs:
+        MUNICIPALITY = MUNICIPALITY
+    else:
+        if type(MUNICIPALITY) == int or (type(MUNICIPALITY) == np.int64):
+            MUNICIPALITY = cities[MUNICIPALITY]
+        elif type(MUNICIPALITY) == str and MUNICIPALITY.isdigit():
+            MUNICIPALITY = cities[int(MUNICIPALITY)]
+        else:
+            MUNICIPALITY = int(codes[MUNICIPALITY])
+
+    images_dir = os.path.join(images_dir, str(MUNICIPALITY))
+
+    out_df = {
+        'epiweek':[],
+        'image_id':[]
+    }
+
+    for image_path in os.listdir(images_dir):
+        if image_path.endswith('.tiff'):
+            epiweek = epiweek_from_date(image_path)
+            full_path = os.path.join(images_dir, image_path)
+            index_datasets = full_path.find("datasets")
+            desired_path = full_path[index_datasets:]
+            out_df['epiweek'].append(epiweek)
+            out_df['image_id'].append(desired_path)
+
+    df = pd.DataFrame(out_df)
+
+    df = df.set_index('epiweek')
+    df.index.name = None
+
+    if return_paths:
+        return df
+
+    # df.image = df.image.apply(read_image, target_size=target_size)
+    print(dataset_path)
+    dataset_path = os.path.join(dataset_path, 'satellitedata_rgb')
+    
+    os.makedirs(dataset_path, exist_ok=True)
+    
+    # Apply the save_image_with_name function to each image path and image name
+    for index, row in df.iterrows():
+        
+        image_id = row['image_id']
+        image = read_image(image_id).squeeze(0)
+        name_parts = image_id.split('.')
+        name_parts[-1] = 'png'
+        image_id = '.'.join(name_parts)
+        
+        path_parts = row['image_id'].split('/')#get image name
+        desired_element = path_parts[-2]#get code
+        new_name = desired_element+"_"+os.path.basename(row['image_id']).split("_")[1]
+        
+        imsave(os.path.join(dataset_path, new_name), image)
+        
+        print("image saved in: ",os.path.join(dataset_path, new_name))
+
+    df = df.dropna()
+    return df
+
+
+
+def get_dengue_dataset(image_path, labels_path, municipality, temp_prec=False, cases=None, limit=True, static=None, dataset_path=None):
+
+    labels_df = read_labels(path=labels_path, Municipality=municipality)
+
+    if limit:
+        labels_df = labels_df[(labels_df.index > 201545) & (labels_df.index < 201901)]
+
+    if  not cases and static and not temp_prec:
+        # Only static is True
+        static = read_static(path=static, Municipality=municipality)
+        labels_df = static.merge(labels_df, how='right', left_index=True, right_index=True)
+        labels_df = labels_df.fillna(labels_df.mode().iloc[0])
+        features_df = create_df(images_dir= image_path, MUNICIPALITY=municipality, target_size=(224, 224, 3), dataset_path=dataset_path)
+        dengue_df = features_df.merge(labels_df, how='inner', left_index=True, right_index=True)
+        
+        return dengue_df
+    else: 
+        # Only temp_prec is True
+        features_df = get_temperature_and_precipitation(int(municipality), temp_prec)
+        dengue_df = features_df.merge(labels_df, how='inner', left_index=True, right_index=True)
+        return dengue_df
+    
+def convert_code(code):
+    if code.isdigit():
+        return int(code)
+    else:
+        return code   
+    
+import numpy as np
+
+def balance_classes(concatenated_df, num_classes):
+    num_classes = num_classes-1
+    quantiles = np.linspace(0, 1, num_classes + 1)[1:-1]  # Exclude 0 and 1 to avoid extremes
+    thresholds = concatenated_df['Labels'].quantile(quantiles)
+    class_labels = np.digitize(concatenated_df['Labels'], thresholds)
+    class_counts = [np.sum(class_labels == i) for i in range(1, num_classes + 1)]
+    mean_count = np.mean(class_counts)
+    for i in range(num_classes):
+        if class_counts[i] > mean_count:
+            thresholds[i] = concatenated_df['Labels'][class_labels == i+1].quantile(0.5)
+        elif class_counts[i] < mean_count:
+            thresholds[i] = concatenated_df['Labels'][class_labels == i+1].quantile(0.5)
+
+    concatenated_df['Labels'] = np.digitize(concatenated_df['Labels'], thresholds)
+
+    return concatenated_df
+
+
+def satellitedata_preprocessing(output_path='datasets/satellitedata', num_classes = 2, dataset_version="10_municipalities", filename='metadata.csv', output_filename='labels.csv'):     
+        
+        
+        os.makedirs(output_path, exist_ok=True)
+        
+        dataset_path = os.path.join(os.getcwd(),output_path, "physionet.org/files/multimodal-satellite-data/1.0.0")
+        
+        labels_path = f'{dataset_path}/{filename}'
+        
+        temp_prec = ['./precipitation_all.csv', './temperature_all 2.csv']
+        
+        static = labels_path
+        
+        cities =  {
+        "76001": "Cali",
+        "5001": "Medellín",
+        "50001": "Villavicencio",
+        "54001": "Cúcuta",
+        "73001": "Ibagué",
+        "68001": "Bucaramanga",
+        "5360": "Itagüí",
+        "8001": "Barranquilla",
+        "41001": "Neiva",
+        "23001": "Montería"
+        }
+        codes = {int(k):v for k,v in cities.items()}
+        Municipalities = list(codes.keys())
+        image_path = f'{dataset_path}/{dataset_version}/images'
+        
+        df = [get_dengue_dataset(image_path = image_path, labels_path=labels_path, municipality=Municipality, static=static, dataset_path=output_path) for Municipality in Municipalities]
+        new_df = []
+        for idx in range(len(df)):
+                city = df[idx]
+                
+                num_classes = num_classes
+
+                city = balance_classes(city, num_classes)
+
+                city['text'] = city.apply(lambda row: (
+                f"In a city with {row['Labels']} Dengue classification, {row['Age0-4(%)']}% of the population is aged 0-4, "
+                f"{row['Age5-14(%)']}% aged 5-14, {row['AfrocolombianPopulation(%)']}% are Afro-Colombian, "
+                f"and {row['IndianPopulation(%)']}% are of Indian descent."
+                ), axis=1)
+                columns = ['image_id','text', 'Labels']
+                new_df.append(city[columns])
+        
+        # Unite all dataframes for all cities
+        concatenated_df = pd.concat(new_df, ignore_index=True)
+        
+        print(f"Using {num_classes} classes, data adapted with the following distribution: {concatenated_df.Labels.value_counts()}")
+        
+        train_val_data, test_data = train_test_split(concatenated_df, test_size=0.2, stratify=concatenated_df['Labels'], random_state=42)
+        train_data, val_data = train_test_split(train_val_data, test_size=0.25, stratify=train_val_data['Labels'], random_state=42)  # 0.25 x 0.8 = 0.2
+
+        train_data['split'] = 'train'
+        val_data['split'] = 'val'
+        test_data['split'] = 'test'
+
+        df_final = pd.concat([train_data, val_data, test_data], ignore_index=True)
+
+        df_final.to_csv(f'{output_path}/{output_filename}', index=False)
+        
+        print(f"Processed dataset saved as {output_filename} in {dataset_path}")
+
+        return df_final
+    
