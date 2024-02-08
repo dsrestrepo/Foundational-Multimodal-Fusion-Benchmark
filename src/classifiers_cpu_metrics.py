@@ -593,6 +593,7 @@ def train_early_fusion(train_loader, test_loader, text_input_size, image_input_s
 
     train_accuracy_list = []
     test_accuracy_list = []
+    f1_accuracy_list = []
     
     # Initialize variables to store total training and inference times
     total_training_time = 0
@@ -649,9 +650,11 @@ def train_early_fusion(train_loader, test_loader, text_input_size, image_input_s
                     #test_model(y_true, (y_pred > 0.5).astype(int))
 
                 test_accuracy = accuracy_score(y_true, y_pred_one_hot)
+                f1 = f1_score(y_true, y_pred_one_hot, average='macro')
                 test_accuracy_list.append(test_accuracy)
+                f1_accuracy_list.append(f1)
 
-                print(f"Epoch {epoch + 1}/{num_epochs} - Test Accuracy: {test_accuracy:.4f}")
+                print(f"Epoch {epoch + 1}/{num_epochs} - Test Accuracy: {test_accuracy:.4f}, macro-f1: {f1:.4f}")
 
             # End measuring inference time
             epoch_end_time = time.time()
@@ -678,7 +681,7 @@ def train_early_fusion(train_loader, test_loader, text_input_size, image_input_s
     print(f"Total Inference Time per Epoch: {total_inference_time:.2f} seconds")
 
     # Plot the accuracy
-    #plt.plot(range(1, num_epochs + 1), train_accuracy_list, label='Train Accuracy')
+    plt.plot(range(1, num_epochs + 1), f1_accuracy_list, label='Test F1')
     plt.plot(range(1, num_epochs + 1), test_accuracy_list, label='Test Accuracy')
     plt.xlabel('Epoch')
     plt.ylabel('Accuracy')
@@ -787,6 +790,7 @@ def train_late_fusion(train_loader, test_loader, text_input_size, image_input_si
 
     train_accuracy_list = []
     test_accuracy_list = []
+    f1_accuracy_list = []
     
     # Initialize variables to store total training and inference times
     total_training_time = 0
@@ -842,9 +846,11 @@ def train_late_fusion(train_loader, test_loader, text_input_size, image_input_si
                     #test_model(y_true, (y_pred > 0.5).astype(int))
 
                 test_accuracy = accuracy_score(y_true, y_pred_one_hot)
+                f1 = f1_score(y_true, y_pred_one_hot, average='macro')
                 test_accuracy_list.append(test_accuracy)
+                f1_accuracy_list.append(f1)
 
-                print(f"Epoch {epoch + 1}/{num_epochs} - Test Accuracy: {test_accuracy:.4f}")
+                print(f"Epoch {epoch + 1}/{num_epochs} - Test Accuracy: {test_accuracy:.4f}, macro-f1: {f1:.4f}")
 
             # End measuring inference time
             epoch_end_time = time.time()
@@ -870,7 +876,7 @@ def train_late_fusion(train_loader, test_loader, text_input_size, image_input_si
     print(f"Total Inference Time per Epoch: {total_inference_time:.2f} seconds")
 
     # Plot the accuracy
-    #plt.plot(range(1, num_epochs + 1), train_accuracy_list, label='Train Accuracy')
+    plt.plot(range(1, num_epochs + 1), f1_accuracy_list, label='Test F1')
     plt.plot(range(1, num_epochs + 1), test_accuracy_list, label='Test Accuracy')
     plt.xlabel('Epoch')
     plt.ylabel('Accuracy')
