@@ -1188,6 +1188,20 @@ def read_image(path, crop=True, target_size=(224,224,3), BANDS='RGB', BAND=0):
     return image_test
 
 def create_df(images_dir, MUNICIPALITY, target_size=(224, 224, 3), return_paths=None, dataset_path=None):
+    print(MUNICIPALITY)
+    cities =  {
+        76001: "Cali",
+        5001: "Medellín",
+        50001: "Villavicencio",
+        54001: "Cúcuta",
+        73001: "Ibagué",
+        68001: "Bucaramanga",
+        5360: "Itagüí",
+        8001: "Barranquilla",
+        41001: "Neiva",
+        23001: "Montería"
+        }
+    
     sub_dirs = os.listdir(images_dir)
     sub_dirs = list(map(convert_code, sub_dirs))
 
@@ -1350,7 +1364,7 @@ def satellitedata_preprocessing(output_path='datasets/satellitedata', num_classe
                 city = balance_classes(city, num_classes)
 
                 city['text'] = city.apply(lambda row: (
-                f"In a city with {row['Labels']} Dengue classification, {row['Age0-4(%)']}% of the population is aged 0-4, "
+                f"In a city called {row['Municipality']} with {row['Labels']} Dengue classification, {row['Age0-4(%)']}% of the population is aged 0-4, "
                 f"{row['Age5-14(%)']}% aged 5-14, {row['AfrocolombianPopulation(%)']}% are Afro-Colombian, "
                 f"and {row['IndianPopulation(%)']}% are of Indian descent."
                 ), axis=1)
