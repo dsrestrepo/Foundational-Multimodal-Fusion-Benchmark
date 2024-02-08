@@ -1280,26 +1280,36 @@ def convert_code(code):
         return int(code)
     else:
         return code   
-    
-import numpy as np
 
 def balance_classes(concatenated_df, num_classes):
-    num_classes = num_classes-1
-    quantiles = np.linspace(0, 1, num_classes + 1)[1:-1]  # Exclude 0 and 1 to avoid extremes
-    thresholds = concatenated_df['Labels'].quantile(quantiles)
-    class_labels = np.digitize(concatenated_df['Labels'], thresholds)
-    class_counts = [np.sum(class_labels == i) for i in range(1, num_classes + 1)]
-    mean_count = np.mean(class_counts)
-    for i in range(num_classes):
-        if class_counts[i] > mean_count:
-            thresholds[i] = concatenated_df['Labels'][class_labels == i+1].quantile(0.5)
-        elif class_counts[i] < mean_count:
-            thresholds[i] = concatenated_df['Labels'][class_labels == i+1].quantile(0.5)
+    concatenated_df['Labels'] = pd.to_numeric(concatenated_df['Labels'], errors='coerce')
+    
+    # Check if num_classes is 2 or more
+    if num_classes == 2:
+        median_threshold = concatenated_df['Labels'].median()
+        class_labels = (concatenated_df['Labels'] > median_threshold).astype(int)
+        
+    else:
+        # Calculate quantiles based on the number of classes
+        quantiles = np.linspace(0, 1, num_classes + 1)[1:-1]  # Exclude 0 and 1 to avoid extremes
+        thresholds = concatenated_df['Labels'].quantile(quantiles)
+        class_labels = np.digitize(concatenated_df['Labels'], thresholds)
+        class_counts = [np.sum(class_labels == i) for i in range(1, num_classes + 1)]
+        mean_count = np.mean(class_counts)
+        thresholds = [None] * num_classes  # Initialize thresholds with None
 
-    concatenated_df['Labels'] = np.digitize(concatenated_df['Labels'], thresholds)
+        for i in range(num_classes):
+            if class_counts[i] > mean_count:
+                thresholds[i] = concatenated_df['Labels'][class_labels == i+1].quantile(0.5)
+            elif class_counts[i] < mean_count:
+                thresholds[i] = concatenated_df['Labels'][class_labels == i+1].quantile(0.5)
 
+        class_labels = np.digitize(concatenated_df['Labels'], thresholds)
+
+
+    # Update the 'Labels' column with the new class labels
+    concatenated_df['Labels'] = class_labels
     return concatenated_df
-
 
 def satellitedata_preprocessing(output_path='datasets/satellitedata', num_classes = 2, dataset_version="10_municipalities", filename='metadata.csv', output_filename='labels.csv'):     
         
