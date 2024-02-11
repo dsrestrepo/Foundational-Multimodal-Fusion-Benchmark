@@ -290,9 +290,10 @@ class EarlyFusionModel(nn.Module):
     - Make sure the dimensions of the text and image features match when combining them.
 
     """
-    def __init__(self, text_model, image_model, output_size, hidden=[128], freeze_backbone=True):
+    def __init__(self, text_model, image_model, output_size, hidden=[128], freeze_backbone=True, p=0.2):
         super(EarlyFusionModel, self).__init__()
         
+        self.p = p
         output_dim = 768 + 768
         
         self.text_model = text_model
@@ -316,7 +317,7 @@ class EarlyFusionModel(nn.Module):
         if isinstance(hidden, int):
             layers.append(nn.Linear(output_dim, hidden))
             layers.append(nn.ReLU())
-            #layers.append(nn.Dropout(p=0.2))
+            layers.append(nn.Dropout(p=self.p))
 
             output_dim = hidden
             
@@ -325,7 +326,7 @@ class EarlyFusionModel(nn.Module):
             for h in hidden:
                 layers.append(nn.Linear(output_dim, h))
                 layers.append(nn.ReLU())
-                #layers.append(nn.Dropout(p=0.2))
+                layers.append(nn.Dropout(p=self.p))
                 layers.append(nn.BatchNorm1d(h))
                 output_dim = h
         
@@ -387,10 +388,11 @@ class LateFusionModel(nn.Module):
     - Make sure the dimensions of the text and image features match when combining them.
 
     """
-    def __init__(self, text_model, image_model, output_size, hidden_images=[64], hidden_text=[64], freeze_backbone=True):
+    def __init__(self, text_model, image_model, output_size, hidden_images=[64], hidden_text=[64], freeze_backbone=True, p=0.2):
         super(LateFusionModel, self).__init__()
         
         embed_dim = 768
+        self.p = p
         
         self.text_model = text_model
         self.text_model.train()
@@ -406,8 +408,8 @@ class LateFusionModel(nn.Module):
             for param in image_model.parameters():
                 param.requires_grad = False
         
-        self.text_fc, out_text = self._get_layers(embed_dim, hidden_text)
-        self.image_fc, out_images = self._get_layers(embed_dim, hidden_images)
+        self.text_fc, out_text = self._get_layers(embed_dim, hidden_text, p)
+        self.image_fc, out_images = self._get_layers(embed_dim, hidden_images, p)
         
         #self.text_fc = nn.Linear(text_input_size, hidden_text)
         #self.image_fc = nn.Linear(image_input_size, hidden_images)
@@ -424,7 +426,7 @@ class LateFusionModel(nn.Module):
         if isinstance(hidden, int):
             layers.append(nn.Linear(output_dim, hidden))
             layers.append(nn.ReLU())
-            #layers.append(nn.Dropout(p=p))
+            layers.append(nn.Dropout(p=p))
 
             output_dim = hidden
             
@@ -433,7 +435,7 @@ class LateFusionModel(nn.Module):
             for h in hidden:
                 layers.append(nn.Linear(output_dim, h))
                 layers.append(nn.ReLU())
-                #layers.append(nn.Dropout(p=p))
+                layers.append(nn.Dropout(p=p))
                 layers.append(nn.BatchNorm1d(h))
                 output_dim = h
         
@@ -591,7 +593,7 @@ def test_model(y_test, y_pred):
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
     
-def train_early_fusion(train_loader, test_loader, output_size, num_epochs=5, multilabel=True, report=False, lr=0.001, adam=False, set_weights=True, freeze_backbone=True):
+def train_early_fusion(train_loader, test_loader, output_size, num_epochs=5, multilabel=True, report=False, lr=0.001, adam=False, set_weights=True, freeze_backbone=True, p=0.0):
     """
     Train an Early Fusion Model.
 
@@ -613,7 +615,7 @@ def train_early_fusion(train_loader, test_loader, output_size, num_epochs=5, mul
     
     text_model = TextModel()
     image_model = VisionModel()
-    model = EarlyFusionModel(text_model=text_model, image_model=image_model, output_size=output_size, freeze_backbone=freeze_backbone)
+    model = EarlyFusionModel(text_model=text_model, image_model=image_model, output_size=output_size, freeze_backbone=freeze_backbone, p=p)
     
     # Calculate memory usages
     model_memory = model_memory_usage(model)
@@ -784,7 +786,7 @@ def train_early_fusion(train_loader, test_loader, output_size, num_epochs=5, mul
             
 
 # Function to train late fusion model (similar changes)
-def train_late_fusion(train_loader, test_loader, output_size, num_epochs=5, multilabel=True, report=False, lr=0.001, adam=False, set_weights=True, freeze_backbone=True):
+def train_late_fusion(train_loader, test_loader, output_size, num_epochs=5, multilabel=True, report=False, lr=0.001, adam=False, set_weights=True, freeze_backbone=True, p=0.0):
     """
     Train a Late Fusion Model.
 
@@ -806,7 +808,7 @@ def train_late_fusion(train_loader, test_loader, output_size, num_epochs=5, mult
     
     text_model = TextModel()
     image_model = VisionModel()
-    model = LateFusionModel(text_model=text_model, image_model=image_model, output_size=output_size, freeze_backbone=freeze_backbone)
+    model = LateFusionModel(text_model=text_model, image_model=image_model, output_size=output_size, freeze_backbone=freeze_backbone, p=p)
     
     model_memory = model_memory_usage(model)
     #batch_memory = batch_memory_usage(train_loader)
