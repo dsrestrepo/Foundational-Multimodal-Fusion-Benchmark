@@ -28,7 +28,7 @@ def modify_and_normalize_embeddings(text_embeddings, image_embeddings, lambda_sh
     return text_embeddings_shifted, image_embeddings_shifted
 
 
-def visualize_embeddings(text_embeddings, image_embeddings, title, lambda_shift, DATASET):
+def visualize_embeddings(text_embeddings, image_embeddings, title, lambda_shift, DATASET, save=True, var=False):
     """Visualize embeddings in 2D and 3D, including the unit circle and sphere."""
     pca = PCA(n_components=2)
     all_embeddings = np.concatenate([text_embeddings, image_embeddings])
@@ -37,7 +37,18 @@ def visualize_embeddings(text_embeddings, image_embeddings, title, lambda_shift,
     # Split reduced embeddings back
     reduced_text_embeddings = reduced_embeddings[:len(text_embeddings)]
     reduced_image_embeddings = reduced_embeddings[len(text_embeddings):]
-    
+    if var:
+        # Calculate and print the variance for each modality in the PCA-transformed space
+        text_embeddings_variance = np.var(reduced_text_embeddings, axis=0)
+        image_embeddings_variance = np.var(reduced_image_embeddings, axis=0)
+        # Calculate the mean variance across PCA components
+        mean_variance_text = np.mean(text_embeddings_variance)
+        mean_variance_image = np.mean(image_embeddings_variance)
+
+        # Print the mean variance
+        print("Mean Variance of PCA-transformed text embeddings:", mean_variance_text)
+        print("Mean Variance of PCA-transformed image embeddings:", mean_variance_image)
+
     # Plotting in 2D with unit circle
     plt.figure(figsize=(10, 6))
     circle = plt.Circle((0, 0), 1, color='green', fill=False)
@@ -53,8 +64,9 @@ def visualize_embeddings(text_embeddings, image_embeddings, title, lambda_shift,
     plt.gca().set_aspect('equal', adjustable='box')
     
     img_path_2d = f'Images/{DATASET}/2d_shift({lambda_shift}).pdf'
-    os.makedirs(os.path.dirname(img_path_2d), exist_ok=True)
-    plt.savefig(img_path_2d)
+    if save:
+        os.makedirs(os.path.dirname(img_path_2d), exist_ok=True)
+        plt.savefig(img_path_2d)
     plt.show()
 
     # Plotting in 3D with unit sphere
@@ -82,8 +94,9 @@ def visualize_embeddings(text_embeddings, image_embeddings, title, lambda_shift,
     plt.legend()
     
     img_path_3d = f'Images/{DATASET}/3d_shift({lambda_shift}).pdf'
-    os.makedirs(os.path.dirname(img_path_3d), exist_ok=True)
-    plt.savefig(img_path_3d)
+    if save:
+        os.makedirs(os.path.dirname(img_path_3d), exist_ok=True)
+        plt.savefig(img_path_3d)
     plt.show()
 
 def plot_results(results, lambda_shift_values, DATASET):
