@@ -7,6 +7,16 @@ import os
 import numpy as np
 import pandas as pd
 
+from scipy.interpolate import interp1d
+from sklearn.preprocessing import normalize
+
+def interpolate_embeddings(smaller_embeddings, target_length):
+    """Interpolate embeddings to match a target length."""
+    interpolated_embeddings = np.zeros((smaller_embeddings.shape[0], target_length))
+    for i in range(smaller_embeddings.shape[0]):
+        interp_func = interp1d(np.linspace(0, 1, smaller_embeddings.shape[1]), smaller_embeddings[i, :])
+        interpolated_embeddings[i, :] = interp_func(np.linspace(0, 1, target_length))
+    return interpolated_embeddings
 
 def normalize_embeddings(embeddings):
     """Normalize embeddings to the unit sphere."""
@@ -14,6 +24,13 @@ def normalize_embeddings(embeddings):
 
 def modify_and_normalize_embeddings(text_embeddings, image_embeddings, lambda_shift):
     """Shift and normalize embeddings."""
+    # Check and match dimensions
+    if text_embeddings.shape[1] != image_embeddings.shape[1]:
+        if text_embeddings.shape[1] > image_embeddings.shape[1]:
+            image_embeddings = interpolate_embeddings(image_embeddings, text_embeddings.shape[1])
+        else:
+            text_embeddings = interpolate_embeddings(text_embeddings, image_embeddings.shape[1])
+    
     # Calculate the original gap vector
     gap_vector = np.mean(image_embeddings, axis=0) - np.mean(text_embeddings, axis=0)
     
@@ -141,3 +158,10 @@ def plot_results(results, lambda_shift_values, DATASET):
     plt.savefig(img_path_metrics)
     
     plt.show()
+    
+    
+def update_column_names(columns, new_size):
+    """Update column names based on the new size of the embeddings."""
+    prefix = columns[0].split('_')[0]  # Extracts 'text' or 'image' from the first column name
+    new_columns = [f"{prefix}_{i+1}" for i in range(new_size)]
+    return new_columns
