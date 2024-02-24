@@ -8,6 +8,8 @@ import json
 import pandas as pd
 import argparse
 import subprocess
+import numpy as np
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 # Create a class to handle the GPT API
 class GPT:
@@ -227,13 +229,14 @@ class GPT:
 
         return df
 
-    
+
     
 # Create a class to handle the LLAMA 2
 class LLAMA:
     # build the constructor
-    def __init__(self, model='Llama-2-7b', embeddings=False, temperature=0.0, n_repetitions=1, reasoning=False, languages=['english', 'portuguese'], path='data/Portuguese.csv', max_tokens=500, verbose=False):
+    def __init__(self, model='Llama-2-7b', embeddings=False, temperature=0.0, n_repetitions=1, reasoning=False, languages=['english', 'portuguese'], path='data/Portuguese.csv', max_tokens=500, verbose=False, max_workers=4):
         
+        self.max_workers = max_workers
         self.embeddings = embeddings
         
         self.model = model
@@ -401,22 +404,63 @@ class LLAMA:
 
     def get_embedding(self, text):
         
-        if  self.index % 500 == 0:
+        if  self.index % 100 == 0:
             print(f'{self.index} Embeddings generated!')
             
         self.index += 1 
 
         text = text.replace("\n", " ")
+        text = text.replace("                                 ", "")
+        text = text.replace("FINAL REPORT", " ")
+        
+        try:
+            embed = self.llm.create_embedding(input = [text])['data'][0]['embedding']
+        except:
+            embed = np.nan
 
-        return self.llm.create_embedding(input = [text])['data'][0]['embedding']
+        return embed
+    
+    
+    def _process_row(self, row_data):
+        """Process a single row of the DataFrame to extract the embedding."""
+        index, text = row_data
+        embedding = self.get_embedding(text)
+        return index, embedding
+
+    def _update_progress(self, index, total):
+        """Update and display the progress."""
+        progress = (index + 1) / total * 100
+        print(f"Progress: {progress:.2f}% ({index + 1}/{total})")
 
     def get_embedding_df(self, column, directory, file):
-        self.index = 0
         df = pd.read_csv(self.path)
-        df["embeddings"] = df[column].apply(lambda x: self.get_embedding(x))
+        os.makedirs(directory, exist_ok=True)
 
-        os.makedirs(directory, exist_ok=True) 
+        total_rows = len(df)
+        
+        with ProcessPoolExecutor(max_workers=self.max_workers) as executor:
+            # Submit tasks to the executor
+            future_to_index = {executor.submit(self._process_row, (index, row[column])): index for index, row in df.iterrows()}
+
+            # Process completed tasks as they come in
+            for i, future in enumerate(as_completed(future_to_index)):
+                index = future_to_index[future]
+                _, embedding = future.result()
+                df.at[index, "embeddings"] = embedding
+
+                # Update the progress
+                self._update_progress(i, total_rows)
+
+        # Save the DataFrame with embeddings to CSV
         df.to_csv(f"{directory}/{file}", index=False)
+        
+    #def get_embedding_df(self, column, directory, file):
+    #    self.index = 0
+    #    df = pd.read_csv(self.path)
+    #    df["embeddings"] = df[column].apply(lambda x: self.get_embedding(x))
+
+    #    os.makedirs(directory, exist_ok=True) 
+    #    df.to_csv(f"{directory}/{file}", index=False)
 
 
     
