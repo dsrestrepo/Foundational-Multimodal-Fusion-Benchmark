@@ -8,8 +8,11 @@ import json
 import pandas as pd
 import argparse
 import subprocess
+<<<<<<< HEAD
 import numpy as np
 from concurrent.futures import ProcessPoolExecutor, as_completed
+=======
+>>>>>>> c4bd42e262153fd2c9dd89040d39a2af2702973f
 
 # Create a class to handle the GPT API
 class GPT:
@@ -229,14 +232,23 @@ class GPT:
 
         return df
 
+<<<<<<< HEAD
 
+=======
+    
+>>>>>>> c4bd42e262153fd2c9dd89040d39a2af2702973f
     
 # Create a class to handle the LLAMA 2
 class LLAMA:
     # build the constructor
+<<<<<<< HEAD
     def __init__(self, model='Llama-2-7b', embeddings=False, temperature=0.0, n_repetitions=1, reasoning=False, languages=['english', 'portuguese'], path='data/Portuguese.csv', max_tokens=500, verbose=False, max_workers=4):
         
         self.max_workers = max_workers
+=======
+    def __init__(self, model='Llama-2-7b', embeddings=False, temperature=0.0, n_repetitions=1, reasoning=False, languages=['english', 'portuguese'], path='data/Portuguese.csv', max_tokens=500, verbose=False):
+        
+>>>>>>> c4bd42e262153fd2c9dd89040d39a2af2702973f
         self.embeddings = embeddings
         
         self.model = model
@@ -404,12 +416,17 @@ class LLAMA:
 
     def get_embedding(self, text):
         
+<<<<<<< HEAD
         if  self.index % 100 == 0:
+=======
+        if  self.index % 500 == 0:
+>>>>>>> c4bd42e262153fd2c9dd89040d39a2af2702973f
             print(f'{self.index} Embeddings generated!')
             
         self.index += 1 
 
         text = text.replace("\n", " ")
+<<<<<<< HEAD
         text = text.replace("                                 ", "")
         text = text.replace("FINAL REPORT", " ")
         
@@ -461,6 +478,18 @@ class LLAMA:
 
     #    os.makedirs(directory, exist_ok=True) 
     #    df.to_csv(f"{directory}/{file}", index=False)
+=======
+
+        return self.llm.create_embedding(input = [text])['data'][0]['embedding']
+
+    def get_embedding_df(self, column, directory, file):
+        self.index = 0
+        df = pd.read_csv(self.path)
+        df["embeddings"] = df[column].apply(lambda x: self.get_embedding(x))
+
+        os.makedirs(directory, exist_ok=True) 
+        df.to_csv(f"{directory}/{file}", index=False)
+>>>>>>> c4bd42e262153fd2c9dd89040d39a2af2702973f
 
 
     
