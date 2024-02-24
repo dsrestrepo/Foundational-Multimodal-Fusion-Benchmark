@@ -175,13 +175,16 @@ def process_labels(df, col='answer', mlb=None, train_columns=None):
         if df[col].dtype == int:
             label = df[col]
         else:
-            labels = df[col].apply(lambda x: set(x.split(', ')))
+            # labels = df[col].apply(lambda x: set(x.split(', ')))
+            label = df[col].apply(lambda x: set(x.split(', ')))
         
         if df[col].dtype == int and (len(df[col].unique()) == 2):
             train_columns = col
             one_hot_labels = label
         else:
-            one_hot_labels = pd.DataFrame(mlb.fit_transform(labels), columns=mlb.classes_)
+            # one_hot_labels = pd.DataFrame(mlb.fit_transform(labels), columns=mlb.classes_)
+            print(label)
+            one_hot_labels = pd.DataFrame(mlb.fit_transform(label.astype(str)), columns=mlb.classes_)
             # Save the columns from the training set
             train_columns = one_hot_labels.columns
         
@@ -191,12 +194,14 @@ def process_labels(df, col='answer', mlb=None, train_columns=None):
         if df[col].dtype == int:
             label = df[col]
         else:
-            labels = df[col].apply(lambda x: set(x.split(', ')))
+            # labels = df[col].apply(lambda x: set(x.split(', ')))
+            label = df[col].apply(lambda x: set(x.split(', ')))
         
         if df[col].dtype == int and (len(df[col].unique()) == 2):
             one_hot_labels = label
         else:
-            one_hot_labels = pd.DataFrame(mlb.transform(labels), columns=train_columns)
+            # one_hot_labels = pd.DataFrame(mlb.transform(labels), columns=train_columns)
+            one_hot_labels = pd.DataFrame(mlb.transform(label.astype(str)), columns=train_columns)
         
         return one_hot_labels
 

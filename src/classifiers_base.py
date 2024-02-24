@@ -56,8 +56,8 @@ def preprocess_df(df, image_columns, images_path):
     def correct_image_path(img_path):
         if type(img_path) != str:
             img_path = str(img_path)
-            if len(img_path) < 12:
-                img_path = '0' * (12 - len(img_path)) + img_path
+            # if len(img_path) < 12:
+            #     img_path = '0' * (12 - len(img_path)) + img_path
     
         full_img_path = os.path.join(images_path, img_path)
         img_path, file_name = os.path.split(full_img_path)
@@ -71,10 +71,12 @@ def preprocess_df(df, image_columns, images_path):
 
     # Correct image paths if necessary
     df[image_columns] = Parallel(n_jobs=multiprocessing.cpu_count())(delayed(correct_image_path)(img_path) for img_path in tqdm(df[image_columns]))
-
+    print(df[image_columns])
+    print(df.shape)
     # Filter out rows with images that cannot be opened
     valid_mask = Parallel(n_jobs=multiprocessing.cpu_count())(delayed(is_valid_image)(img_path) for img_path in tqdm(df[image_columns]))
     df = df[valid_mask]
+    print(df.shape)
 
     # Correct image paths if necessary
     #df[image_columns] = df[image_columns].apply(correct_image_path)
