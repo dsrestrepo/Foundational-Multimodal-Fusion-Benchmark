@@ -182,7 +182,7 @@ class GPT:
     
         return response
 
-
+    def llm_language_evaluation(self, save=True):
         ### Questions from a csv file:
         df = pd.read_csv(self.path)
 
