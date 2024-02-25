@@ -183,7 +183,6 @@ def process_labels(df, col='answer', mlb=None, train_columns=None):
             one_hot_labels = label
         else:
             # one_hot_labels = pd.DataFrame(mlb.fit_transform(labels), columns=mlb.classes_)
-            print(label)
             one_hot_labels = pd.DataFrame(mlb.fit_transform(label.astype(str)), columns=mlb.classes_)
             # Save the columns from the training set
             train_columns = one_hot_labels.columns
