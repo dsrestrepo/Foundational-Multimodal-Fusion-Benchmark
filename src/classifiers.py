@@ -23,6 +23,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from sklearn.metrics import roc_auc_score
 from sklearn.metrics import roc_curve
 from sklearn.metrics import confusion_matrix
 from sklearn.metrics import classification_report
@@ -551,9 +552,11 @@ def train_early_fusion(train_loader, test_loader, text_input_size, image_input_s
     #    criterion = nn.CrossEntropyLoss()
     
     best = {
-        'Acc': {'Acc': 0, 'F1': 0, 'Epoch': 0},
-        'Macro-F1': {'Acc': 0, 'F1': 0, 'Epoch': 0}
+        'Acc': {'Acc': 0, 'F1': 0, 'Auc': 0, 'Epoch': 0, 'Auc_Per_Class': []},
+        'Macro-F1': {'Acc': 0, 'F1': 0, 'Auc': 0, 'Epoch': 0, 'Auc_Per_Class': []},
+        'AUC': {'Acc': 0, 'F1': 0, 'Auc': 0, 'Epoch': 0, 'Auc_Per_Class': []}  # Add this if prioritizing AUC
     }
+
 
     train_accuracy_list = []
     test_accuracy_list = []
@@ -612,18 +615,49 @@ def train_early_fusion(train_loader, test_loader, text_input_size, image_input_s
             f1 = f1_score(y_true, y_pred_one_hot, average='macro')
             test_accuracy_list.append(test_accuracy)
             f1_accuracy_list.append(f1)
+            # Compute AUC for binary or multi-class classification
+            if multilabel or (output_size == 1):
+                if output_size == 1:  # Binary classification case
+                    auc_scores = roc_auc_score(y_true, y_pred, average=None)
+                else:  # Multi-label classification
+                    try:
+                        auc_scores = roc_auc_score(y_true, y_pred, average=None, multi_class='ovr')
+                    except ValueError:
+                        auc_scores = np.nan  # Handling cases where AUC cannot be computed due to class imbalance
+            else:  # Multi-class classification
+                try:
+                    auc_scores = roc_auc_score(y_true, y_pred_one_hot, average=None, multi_class='ovr')
+                except ValueError:
+                    auc_scores = np.nan  # Handling cases where AUC cannot be computed due to class imbalance
+            if output_size == 1:
+                macro_auc = auc_scores
+            else:    
+                macro_auc = np.nanmean(auc_scores)  # Compute macro AUC
+
+            
             if V:
-                print(f"Epoch {epoch + 1}/{num_epochs} - Test Accuracy: {test_accuracy:.4f}, macro-f1: {f1:.4f}")
+                print(f"Epoch {epoch + 1}/{num_epochs} - Test Accuracy: {test_accuracy:.4f}, macro-f1: {f1:.4f}, macro-AUC: {macro_auc:.4f}")
             
             if best['Acc']['Acc'] < test_accuracy:
                 best['Acc']['Acc'] = test_accuracy
                 best['Acc']['F1'] = f1
                 best['Acc']['Epoch'] = epoch + 1
+                best['Acc']['Auc_Per_Class'] = auc_scores
+                best['Acc']['Auc'] = macro_auc
                 
             if best['Macro-F1']['F1'] < f1: 
                 best['Macro-F1']['Acc'] = test_accuracy
                 best['Macro-F1']['F1'] = f1
                 best['Macro-F1']['Epoch'] = epoch + 1
+                best['Macro-F1']['Auc_Per_Class'] = auc_scores
+                best['Macro-F1']['Auc'] = macro_auc
+                
+            if best['AUC']['Auc'] < macro_auc:
+                best['AUC']['Acc'] = test_accuracy
+                best['AUC']['F1'] = f1
+                best['AUC']['Auc'] = macro_auc
+                best['AUC']['Epoch'] = epoch + 1
+                best['AUC']['Auc_Per_Class'] = auc_scores
             
         # End measuring inference time
         epoch_end_time = time.time()
@@ -747,13 +781,15 @@ def train_late_fusion(train_loader, test_loader, text_input_size, image_input_si
     optimizer = optim.AdamW(model.parameters(), lr=lr)
     
     best = {
-        'Acc': {'Acc': 0, 'F1': 0, 'Epoch': 0},
-        'Macro-F1': {'Acc': 0, 'F1': 0, 'Epoch': 0}
+        'Acc': {'Acc': 0, 'F1': 0, 'Auc': 0, 'Epoch': 0, 'Auc_Per_Class': []},
+        'Macro-F1': {'Acc': 0, 'F1': 0, 'Auc': 0, 'Epoch': 0, 'Auc_Per_Class': []},
+        'AUC': {'Acc': 0, 'F1': 0, 'Auc': 0, 'Epoch': 0, 'Auc_Per_Class': []}  # Add this if prioritizing AUC
     }
+    
     train_accuracy_list = []
     test_accuracy_list = []
     f1_accuracy_list = []
-    
+
     # Initialize variables to store total training and inference times
     total_training_time = 0
     total_inference_time = 0
@@ -807,19 +843,51 @@ def train_late_fusion(train_loader, test_loader, text_input_size, image_input_si
             f1 = f1_score(y_true, y_pred_one_hot, average='macro')
             test_accuracy_list.append(test_accuracy)
             f1_accuracy_list.append(f1)
+            
+            # Compute AUC for binary or multi-class classification
+            if multilabel or (output_size == 1):
+                if output_size == 1:  # Binary classification case
+                    auc_scores = roc_auc_score(y_true, y_pred, average=None)
+                else:  # Multi-label classification
+                    try:
+                        auc_scores = roc_auc_score(y_true, y_pred, average=None, multi_class='ovr')
+                    except ValueError:
+                        auc_scores = np.nan  # Handling cases where AUC cannot be computed due to class imbalance
+            else:  # Multi-class classification
+                try:
+                    auc_scores = roc_auc_score(y_true, y_pred_one_hot, average=None, multi_class='ovr')
+                except ValueError:
+                    auc_scores = np.nan  # Handling cases where AUC cannot be computed due to class imbalance
+            if output_size == 1:
+                macro_auc = auc_scores
+            else:    
+                macro_auc = np.nanmean(auc_scores)  # Compute macro AUC
 
+            
             if V:
-                print(f"Epoch {epoch + 1}/{num_epochs} - Test Accuracy: {test_accuracy:.4f}, macro-f1: {f1:.4f}")
+                print(f"Epoch {epoch + 1}/{num_epochs} - Test Accuracy: {test_accuracy:.4f}, macro-f1: {f1:.4f}, macro-AUC: {macro_auc:.4f}")
             
             if best['Acc']['Acc'] < test_accuracy:
                 best['Acc']['Acc'] = test_accuracy
                 best['Acc']['F1'] = f1
                 best['Acc']['Epoch'] = epoch + 1
+                best['Acc']['Auc_Per_Class'] = auc_scores
+                best['Acc']['Auc'] = macro_auc
                 
             if best['Macro-F1']['F1'] < f1: 
                 best['Macro-F1']['Acc'] = test_accuracy
                 best['Macro-F1']['F1'] = f1
                 best['Macro-F1']['Epoch'] = epoch + 1
+                best['Macro-F1']['Auc_Per_Class'] = auc_scores
+                best['Macro-F1']['Auc'] = macro_auc
+                
+            if best['AUC']['Auc'] < macro_auc:
+                best['AUC']['Acc'] = test_accuracy
+                best['AUC']['F1'] = f1
+                best['AUC']['Auc'] = macro_auc
+                best['AUC']['Epoch'] = epoch + 1
+                best['AUC']['Auc_Per_Class'] = auc_scores
+            
             
         
         # End measuring inference time

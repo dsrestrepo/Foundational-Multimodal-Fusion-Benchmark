@@ -118,38 +118,50 @@ def visualize_embeddings(text_embeddings, image_embeddings, title, lambda_shift,
 
 def plot_results(results, lambda_shift_values, DATASET):
     # Extracting F1 and Accuracy values for early and late fusion models
-    early_f1 = [results[f'early_({lambda_shift})']['Acc']['F1'] for lambda_shift in lambda_shift_values]
-    late_f1 = [results[f'late_({lambda_shift})']['Acc']['F1'] for lambda_shift in lambda_shift_values]
+    early_f1 = [results[f'early_({lambda_shift})']['Macro-F1']['F1'] for lambda_shift in lambda_shift_values]
+    late_f1 = [results[f'late_({lambda_shift})']['Macro-F1']['F1'] for lambda_shift in lambda_shift_values]
 
     early_acc = [results[f'early_({lambda_shift})']['Acc']['Acc'] for lambda_shift in lambda_shift_values]
     late_acc = [results[f'late_({lambda_shift})']['Acc']['Acc'] for lambda_shift in lambda_shift_values]
+    
+    early_auc = [results[f'early_({lambda_shift})']['AUC']['Auc'] for lambda_shift in lambda_shift_values]
+    late_auc = [results[f'late_({lambda_shift})']['AUC']['Auc'] for lambda_shift in lambda_shift_values]
 
     # Plotting
-    fig, axs = plt.subplots(2, 2, figsize=(14, 10))
+    fig, axs = plt.subplots(3, 2, figsize=(14, 15))  # Adjusted for 3 metrics
 
-    # Early fusion F1
+    # Plot F1 Score
     axs[0, 0].plot(lambda_shift_values, early_f1, marker='o', linestyle='-', color='b')
-    axs[0, 0].set_title(f'Early Fusion Best F1 Score {DATASET}')
+    axs[0, 0].set_title(f'Early Fusion F1 Score - {DATASET}')
     axs[0, 0].set_xlabel('Lambda Shift')
     axs[0, 0].set_ylabel('F1 Score')
 
-    # Late fusion F1
     axs[0, 1].plot(lambda_shift_values, late_f1, marker='o', linestyle='-', color='r')
-    axs[0, 1].set_title(f'Late Fusion Best F1 Score {DATASET}')
+    axs[0, 1].set_title(f'Late Fusion F1 Score - {DATASET}')
     axs[0, 1].set_xlabel('Lambda Shift')
     axs[0, 1].set_ylabel('F1 Score')
 
-    # Early fusion Accuracy
+    # Plot Accuracy
     axs[1, 0].plot(lambda_shift_values, early_acc, marker='o', linestyle='-', color='g')
-    axs[1, 0].set_title(f'Early Fusion Best Accuracy {DATASET}')
+    axs[1, 0].set_title(f'Early Fusion Accuracy - {DATASET}')
     axs[1, 0].set_xlabel('Lambda Shift')
     axs[1, 0].set_ylabel('Accuracy')
 
-    # Late fusion Accuracy
     axs[1, 1].plot(lambda_shift_values, late_acc, marker='o', linestyle='-', color='m')
-    axs[1, 1].set_title(f'Late Fusion Best Accuracy {DATASET}')
+    axs[1, 1].set_title(f'Late Fusion Accuracy - {DATASET}')
     axs[1, 1].set_xlabel('Lambda Shift')
     axs[1, 1].set_ylabel('Accuracy')
+
+    # Plot AUC
+    axs[2, 0].plot(lambda_shift_values, early_auc, marker='o', linestyle='-', color='c')
+    axs[2, 0].set_title(f'Early Fusion AUC - {DATASET}')
+    axs[2, 0].set_xlabel('Lambda Shift')
+    axs[2, 0].set_ylabel('AUC')
+
+    axs[2, 1].plot(lambda_shift_values, late_auc, marker='o', linestyle='-', color='y')
+    axs[2, 1].set_title(f'Late Fusion AUC - {DATASET}')
+    axs[2, 1].set_xlabel('Lambda Shift')
+    axs[2, 1].set_ylabel('AUC')
 
     plt.tight_layout()
     
