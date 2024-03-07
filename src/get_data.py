@@ -1390,4 +1390,57 @@ def satellitedata_preprocessing(output_path='datasets/satellitedata', num_classe
         print(f"Processed dataset saved as {output_filename} in {dataset_path}")
 
         return df_final
+
+#####Joslin Diabetes Center Data#####
+def joslin_preprocessing(dataset_path, filename='labels.csv', output_filename='labels.csv'):
+    # Load the dataset
+    df = pd.read_csv(f'{dataset_path}/{filename}')
+
+    # Define the conversion functions
+    def convert_sex(sex):
+        return 'male' if sex == 'M' else 'female' if sex == 'F' else 'no sex reported'
     
+    def convert_eye(eye):
+        return 'right' if eye == 'R' else 'left' if eye == 'L' else 'no eye reported'
+    
+    def convert_presence(presence):
+        return 'present' if presence == 1 else 'absent'
+    
+    # Create the 'text' column with conditions
+    # df['text'] = df.apply(lambda row: (
+    #     f"An image from the {convert_eye(row['exam_eye'])} eye of a {convert_sex(row['patient_sex'])} patient, "
+    #     f"aged {'no age reported' if pd.isnull(row['patient_age']) else str(float(str(row['patient_age']).replace('O', '0').replace(',', '.')))} years, "
+    #     f"{'with no comorbidities reported' if pd.isnull(row['comorbidities']) else 'with comorbidities: ' + row['comorbidities']}, "
+    #     f"{'with no diabetes duration reported' if pd.isnull(row['diabetes_time_y']) or row['diabetes_time_y'] == 'Não' else 'diabetes diagnosed for ' + str(float(str(row['diabetes_time_y']).replace('O', '0').replace(',', '.'))) + ' years'}, "
+    #     f"{'not using insulin' if row['insuline'] == 'no' else 'using insulin'}. "
+    #     f"The optic disc is {convert_presence(row['optic_disc'])}, vessels are {convert_presence(row['vessels'])}, "
+    #     f"and the macula is {convert_presence(row['macula'])}. "
+    #     f"Conditions include macular edema: {convert_presence(row['macular_edema'])}, scar: {convert_presence(row['scar'])}, "
+    #     f"nevus: {convert_presence(row['nevus'])}, amd: {convert_presence(row['amd'])}, vascular occlusion: {convert_presence(row['vascular_occlusion'])}, "
+    #     f"drusens: {convert_presence(row['drusens'])}, hemorrhage: {convert_presence(row['hemorrhage'])}, "
+    #     f"retinal detachment: {convert_presence(row['retinal_detachment'])}, myopic fundus: {convert_presence(row['myopic_fundus'])}, "
+    #     f"increased cup disc ratio: {convert_presence(row['increased_cup_disc'])}, and other conditions: {convert_presence(row['other'])}."
+    # ), axis=1)
+
+    df['text'] = df.apply(lambda row: (
+        f"An image from the {convert_eye(row['LATERALITY'])} eye of a {convert_sex(row['SEX'])} patient, "
+        f"aged {'no age reported' if pd.isnull(row['PT_AGE']) else str(float(str(row['PT_AGE']).replace('O', '0').replace(',', '.')))} years, "  
+    ), axis=1)
+
+    # Drop all columns except for 'image_id', 'DR_ICDR', and 'text'
+    df = df[['ID', 'EYE_DR', 'text']]
+
+    # Create DR_2 and DR_3 columns from DR_ICDR
+    df['DR_2'] = df['EYE_DR'].apply(lambda x: 1 if x > 0 else 0)
+    df['DR_3'] = df['EYE_DR'].apply(lambda x: 2 if x == 4 else (1 if x in [1, 2, 3] else 0))
+
+    # Create a 'split' column
+    df['split'] = 'train'  # Initialize all as 'train'
+    # Stratify split by 'EYE_DR'
+    train_idx, test_idx = train_test_split(df.index, test_size=0.2, stratify=df['EYE_DR'], random_state=42)
+    df.loc[test_idx, 'split'] = 'test'  # Update 'split' for test set
+
+    # Save the processed dataframe to a new CSV file
+    df.to_csv(f'{dataset_path}/{output_filename}', index=False)
+
+    print(f"Processed dataset saved as {output_filename} in {dataset_path}")
