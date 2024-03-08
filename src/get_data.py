@@ -1391,40 +1391,60 @@ def satellitedata_preprocessing(output_path='datasets/satellitedata', num_classe
 
         return df_final
 
-#####Joslin Diabetes Center Data#####
+
 def joslin_preprocessing(dataset_path, filename='labels.csv', output_filename='labels.csv'):
     # Load the dataset
     df = pd.read_csv(f'{dataset_path}/{filename}')
 
     # Define the conversion functions
-    def convert_sex(sex):
-        return 'male' if sex == 'M' else 'female' if sex == 'F' else 'no sex reported'
-    
     def convert_eye(eye):
         return 'right' if eye == 'R' else 'left' if eye == 'L' else 'no eye reported'
-    
-    def convert_presence(presence):
-        return 'present' if presence == 1 else 'absent'
-    
-    # Create the 'text' column with conditions
-    # df['text'] = df.apply(lambda row: (
-    #     f"An image from the {convert_eye(row['exam_eye'])} eye of a {convert_sex(row['patient_sex'])} patient, "
-    #     f"aged {'no age reported' if pd.isnull(row['patient_age']) else str(float(str(row['patient_age']).replace('O', '0').replace(',', '.')))} years, "
-    #     f"{'with no comorbidities reported' if pd.isnull(row['comorbidities']) else 'with comorbidities: ' + row['comorbidities']}, "
-    #     f"{'with no diabetes duration reported' if pd.isnull(row['diabetes_time_y']) or row['diabetes_time_y'] == 'Não' else 'diabetes diagnosed for ' + str(float(str(row['diabetes_time_y']).replace('O', '0').replace(',', '.'))) + ' years'}, "
-    #     f"{'not using insulin' if row['insuline'] == 'no' else 'using insulin'}. "
-    #     f"The optic disc is {convert_presence(row['optic_disc'])}, vessels are {convert_presence(row['vessels'])}, "
-    #     f"and the macula is {convert_presence(row['macula'])}. "
-    #     f"Conditions include macular edema: {convert_presence(row['macular_edema'])}, scar: {convert_presence(row['scar'])}, "
-    #     f"nevus: {convert_presence(row['nevus'])}, amd: {convert_presence(row['amd'])}, vascular occlusion: {convert_presence(row['vascular_occlusion'])}, "
-    #     f"drusens: {convert_presence(row['drusens'])}, hemorrhage: {convert_presence(row['hemorrhage'])}, "
-    #     f"retinal detachment: {convert_presence(row['retinal_detachment'])}, myopic fundus: {convert_presence(row['myopic_fundus'])}, "
-    #     f"increased cup disc ratio: {convert_presence(row['increased_cup_disc'])}, and other conditions: {convert_presence(row['other'])}."
-    # ), axis=1)
 
+    def convert_sex(sex):
+        return 'male' if sex == 'M' else 'female' if sex == 'F' else 'no sex reported'
+
+    def convert_ethnicity(ethnicity):
+        return 'declined to specify ethnicity' if str(ethnicity).strip() == 'Declined to specify' else \
+            '' if str(ethnicity).strip() == 'nan' else str(ethnicity).strip()
+
+    def convert_diabetes_type(diabetes_type):
+        return '' if str(diabetes_type).strip() == 'nan' else str(diabetes_type).strip()
+
+    def convert_visual_acuity(VA):
+        return 'hand motion' if str(VA).strip() == 'HM' else \
+            'counting fingers' if str(VA).strip() == 'CF' else \
+            'light perception' if str(VA).strip() == 'LP' else \
+            'no light perception' if str(VA).strip() == 'NLP' else \
+            'value missing' if str(VA).strip() == 'nan' else VA
+
+    def convert_lens_status(status):
+        return '' if str(status).strip() == 'nan' else str(status).strip()
+
+    def convert_presence(presence):
+        return 'present' if presence == 1 else 'absent' if presence == 0 else 'not recorded'
+
+    def convert_positive_status(status):
+        return 'positive' if status == 1 else 'negative' if status == 2 \
+            else 'not recorded' if status == 0 else 'value missing'
+
+    # Create the 'text' column with conditions
     df['text'] = df.apply(lambda row: (
-        f"An image from the {convert_eye(row['LATERALITY'])} eye of a {convert_sex(row['SEX'])} patient, "
-        f"aged {'no age reported' if pd.isnull(row['PT_AGE']) else str(float(str(row['PT_AGE']).replace('O', '0').replace(',', '.')))} years, "  
+        f"An image from the {convert_eye(row['LATERALITY'])} eye of a {convert_sex(row['SEX'])} {convert_ethnicity(row['U_ETHNIC_GROUP'])} patient, "
+        f"aged {'no age reported' if pd.isnull(row['PT_AGE']) else str(float(str(row['PT_AGE']).replace('O', '0').replace(',', '.')))} years, "
+        f"with {convert_diabetes_type(row['DM_TYPE'])} diabetes {convert_presence(row['DIABETIC'])}, "
+        f"{'' if pd.isnull(row['YEARS_W_DZ']) or row['YEARS_W_DZ'] <= 0 else 'diagnosed for ' + str(float(str(row['YEARS_W_DZ']).replace('O', '0').replace(',', '.'))) + ' years'}, "
+        f"{'' if pd.isnull(row['AGE_W_DIAG']) or row['AGE_W_DIAG'] < 0 else 'and was first diagnosed at age ' + str(float(str(row['AGE_W_DIAG']).replace('O', '0').replace(',', '.')))}. "
+        f"Comorbidities include diabetic macular edema (DME): {convert_presence(row['EYE_DME'])}, " 
+        f"hypertension: {convert_positive_status(row['HYPERTENSION'])}, "
+        f"high_cholesterol: {convert_positive_status(row['HIGH_CHOLESTEROL'])}, "
+        f"cardiac problems: {convert_positive_status(row['CARDIAC_PROBLEMS'])}, "
+        f"neuropathy: {convert_positive_status(row['NEUROPATHY'])}, "
+        f"renal disease: {convert_positive_status(row['RENAL_DISEASE'])}, "
+        f"and anemia: {convert_positive_status(row['ANEMIA'])}. "
+        f"Eye conditions include best visual acuity (VA): {convert_visual_acuity(row['BEST_VA'])}, "
+        f"eye lens status: {convert_lens_status(row['LENS_STATUS'])}, "
+        f"retinal laser scars: {convert_presence(row['RET_LASERSCAR'])}, "
+        f"and vitreous hemorrhage: {convert_presence(row['VITREOUS_HEME'])}."
     ), axis=1)
 
     # Drop all columns except for 'image_id', 'DR_ICDR', and 'text'
