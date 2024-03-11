@@ -1427,6 +1427,10 @@ def joslin_preprocessing(dataset_path, filename='labels.csv', output_filename='l
         return 'positive' if status == 1 else 'negative' if status == 2 \
             else 'not recorded' if status == 0 else 'value missing'
 
+    def convert_detailed_status(status):
+        return 'present' if str(status) == '1' else 'absent' if str(status) == '0.0' \
+            else 'value missing' if str(status) == 'nan' else str(status)
+
     # Create the 'text' column with conditions
     df['text'] = df.apply(lambda row: (
         f"An image from the {convert_eye(row['LATERALITY'])} eye of a {convert_sex(row['SEX'])} {convert_ethnicity(row['U_ETHNIC_GROUP'])} patient, "
@@ -1443,8 +1447,15 @@ def joslin_preprocessing(dataset_path, filename='labels.csv', output_filename='l
         f"and anemia: {convert_positive_status(row['ANEMIA'])}. "
         f"Eye conditions include best visual acuity (VA): {convert_visual_acuity(row['BEST_VA'])}, "
         f"eye lens status: {convert_lens_status(row['LENS_STATUS'])}, "
+        f"new vessels elsewhere quiescent proliferative diabetic retinopathy: {convert_presence(row['NVE_QUIESC_PDR'])}, "
         f"retinal laser scars: {convert_presence(row['RET_LASERSCAR'])}, "
-        f"and vitreous hemorrhage: {convert_presence(row['VITREOUS_HEME'])}."
+        f"and vitreous hemorrhage: {convert_presence(row['VITREOUS_HEME'])}. "
+        f"Other eye conditions with detailed information include retina thickening: {convert_detailed_status(row['THICKENING'])}, "
+        f"hemorrhages and microaneurysms: {convert_detailed_status(row['HEME_MA'])}, "
+        f"venous beading: {convert_detailed_status(row['VENOUS_BEAD'])}, "
+        f"intraretinal microvascular abnormalities: {convert_detailed_status(row['IRMA'])}, "
+        f"new vessels on the disc: {convert_detailed_status(row['NVD'])}, "
+        f"and new vessels elsewhere: {convert_detailed_status(row['NVE'])}."
     ), axis=1)
 
     # Drop all columns except for 'image_id', 'DR_ICDR', and 'text'
