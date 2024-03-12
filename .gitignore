@@ -1,5 +1,6 @@
 # By now .csv files
 *.csv
+/google-cloud-sdk
 !Embeddings/daquar/Embeddings_dinov2_base.csv
 !Embeddings/Recipes5k/Embeddings_dinov2_base.csv
 *.txt
