@@ -1390,4 +1390,88 @@ def satellitedata_preprocessing(output_path='datasets/satellitedata', num_classe
         print(f"Processed dataset saved as {output_filename} in {dataset_path}")
 
         return df_final
-    
+
+
+def joslin_preprocessing(dataset_path, filename='labels.csv', output_filename='labels.csv'):
+    # Load the dataset
+    df = pd.read_csv(f'{dataset_path}/{filename}')
+
+    # Define the conversion functions
+    def convert_eye(eye):
+        return 'right' if eye == 'R' else 'left' if eye == 'L' else 'no eye reported'
+
+    def convert_sex(sex):
+        return 'male' if sex == 'M' else 'female' if sex == 'F' else 'no sex reported'
+
+    def convert_ethnicity(ethnicity):
+        return 'declined to specify ethnicity' if str(ethnicity).strip() == 'Declined to specify' else \
+            '' if str(ethnicity).strip() == 'nan' else str(ethnicity).strip()
+
+    def convert_diabetes_type(diabetes_type):
+        return '' if str(diabetes_type).strip() == 'nan' else str(diabetes_type).strip()
+
+    def convert_visual_acuity(VA):
+        return 'hand motion' if str(VA).strip() == 'HM' else \
+            'counting fingers' if str(VA).strip() == 'CF' else \
+            'light perception' if str(VA).strip() == 'LP' else \
+            'no light perception' if str(VA).strip() == 'NLP' else \
+            'value missing' if str(VA).strip() == 'nan' else VA
+
+    def convert_lens_status(status):
+        return '' if str(status).strip() == 'nan' else str(status).strip()
+
+    def convert_presence(presence):
+        return 'present' if presence == 1 else 'absent' if presence == 0 else 'not recorded'
+
+    def convert_positive_status(status):
+        return 'positive' if status == 1 else 'negative' if status == 2 \
+            else 'not recorded' if status == 0 else 'value missing'
+
+    def convert_detailed_status(status):
+        return 'present' if str(status) == '1' else 'absent' if str(status) == '0.0' \
+            else 'value missing' if str(status) == 'nan' else str(status)
+
+    # Create the 'text' column with conditions
+    df['text'] = df.apply(lambda row: (
+        f"An image from the {convert_eye(row['LATERALITY'])} eye of a {convert_sex(row['SEX'])} {convert_ethnicity(row['U_ETHNIC_GROUP'])} patient, "
+        f"aged {'no age reported' if pd.isnull(row['PT_AGE']) else str(float(str(row['PT_AGE']).replace('O', '0').replace(',', '.')))} years, "
+        f"with {convert_diabetes_type(row['DM_TYPE'])} diabetes {convert_presence(row['DIABETIC'])}, "
+        f"{'' if pd.isnull(row['YEARS_W_DZ']) or row['YEARS_W_DZ'] <= 0 else 'diagnosed for ' + str(float(str(row['YEARS_W_DZ']).replace('O', '0').replace(',', '.'))) + ' years'}, "
+        f"{'' if pd.isnull(row['AGE_W_DIAG']) or row['AGE_W_DIAG'] < 0 else 'and was first diagnosed at age ' + str(float(str(row['AGE_W_DIAG']).replace('O', '0').replace(',', '.')))}. "
+        f"Comorbidities include diabetic macular edema (DME): {convert_presence(row['EYE_DME'])}, " 
+        f"hypertension: {convert_positive_status(row['HYPERTENSION'])}, "
+        f"high_cholesterol: {convert_positive_status(row['HIGH_CHOLESTEROL'])}, "
+        f"cardiac problems: {convert_positive_status(row['CARDIAC_PROBLEMS'])}, "
+        f"neuropathy: {convert_positive_status(row['NEUROPATHY'])}, "
+        f"renal disease: {convert_positive_status(row['RENAL_DISEASE'])}, "
+        f"and anemia: {convert_positive_status(row['ANEMIA'])}. "
+        f"Eye conditions include best visual acuity (VA): {convert_visual_acuity(row['BEST_VA'])}, "
+        f"eye lens status: {convert_lens_status(row['LENS_STATUS'])}, "
+        f"new vessels elsewhere quiescent proliferative diabetic retinopathy: {convert_presence(row['NVE_QUIESC_PDR'])}, "
+        f"retinal laser scars: {convert_presence(row['RET_LASERSCAR'])}, "
+        f"and vitreous hemorrhage: {convert_presence(row['VITREOUS_HEME'])}. "
+        f"Other eye conditions with detailed information include retina thickening: {convert_detailed_status(row['THICKENING'])}, "
+        f"hemorrhages and microaneurysms: {convert_detailed_status(row['HEME_MA'])}, "
+        f"venous beading: {convert_detailed_status(row['VENOUS_BEAD'])}, "
+        f"intraretinal microvascular abnormalities: {convert_detailed_status(row['IRMA'])}, "
+        f"new vessels on the disc: {convert_detailed_status(row['NVD'])}, "
+        f"and new vessels elsewhere: {convert_detailed_status(row['NVE'])}."
+    ), axis=1)
+
+    # Drop all columns except for 'image_id', 'DR_ICDR', and 'text'
+    df = df[['ID', 'EYE_DR', 'text']]
+
+    # Create DR_2 and DR_3 columns from DR_ICDR
+    df['DR_2'] = df['EYE_DR'].apply(lambda x: 1 if x > 0 else 0)
+    df['DR_3'] = df['EYE_DR'].apply(lambda x: 2 if x == 4 else (1 if x in [1, 2, 3] else 0))
+
+    # Create a 'split' column
+    df['split'] = 'train'  # Initialize all as 'train'
+    # Stratify split by 'EYE_DR'
+    train_idx, test_idx = train_test_split(df.index, test_size=0.2, stratify=df['EYE_DR'], random_state=42)
+    df.loc[test_idx, 'split'] = 'test'  # Update 'split' for test set
+
+    # Save the processed dataframe to a new CSV file
+    df.to_csv(f'{dataset_path}/{output_filename}', index=False)
+
+    print(f"Processed dataset saved as {output_filename} in {dataset_path}")
