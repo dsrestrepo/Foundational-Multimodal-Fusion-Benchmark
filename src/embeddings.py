@@ -50,7 +50,7 @@ warnings.filterwarnings("ignore")
 
 
 # Define a function to generate embeddings in parallel
-def generate_embeddings(batch, batch_number, model):
+def generate_embeddings(batch, batch_number, model, device):
     """
     Generate image embeddings for a batch of images using the specified model.
 
@@ -72,6 +72,7 @@ def generate_embeddings(batch, batch_number, model):
     - It is typically used in a data loading pipeline to generate embeddings for a dataset.
     """
     img_names, images = batch[0], batch[1]
+    images = images.to(device)
 
     with torch.no_grad():
         features = model(images)
@@ -81,8 +82,7 @@ def generate_embeddings(batch, batch_number, model):
 
     return img_names, features
 
-
-def get_embeddings_df(batch_size=32, path="../BRSET/images/", dataset_name='BRSET', backbone="dinov2", directory='Embeddings', transform=None, image_files=None):
+def get_embeddings_df(batch_size=32, path="../BRSET/images/", dataset_name='BRSET', backbone="dinov2", directory='Embeddings', transform=None, image_files=None, device="cuda"):
     """
     Generate image embeddings and save them in a DataFrame.
 
@@ -92,6 +92,7 @@ def get_embeddings_df(batch_size=32, path="../BRSET/images/", dataset_name='BRSE
     - backbone (str, optional): The name of the foundational CV model to use. Default is "dinov2".
     - directory (str, optional): The directory to save the generated embeddings DataFrame. Default is 'Embeddings'.
     - dataset_name (str, optional): The dataset used to generate the embeddings. Default is 'BRSET'.
+    - device (str, optional): The device to use for processing ('cuda' or 'cpu'). Default is 'cuda'.
 
     Example Usage:
     ```python
@@ -105,7 +106,12 @@ def get_embeddings_df(batch_size=32, path="../BRSET/images/", dataset_name='BRSE
 
     """
     print('#'*50, f' {backbone} ', '#'*50)
-    
+    # Check if the device string is valid
+    if device not in ['cuda', 'cpu']:
+        raise ValueError("Invalid device name. Please provide 'cuda' or 'cpu'.")
+
+    # Set the device
+    device = torch.device(device)
     # Create the custom dataset
     shape = (224, 224)
     if dataset_name == 'BRSET':
@@ -116,13 +122,14 @@ def get_embeddings_df(batch_size=32, path="../BRSET/images/", dataset_name='BRSE
     # Create a DataLoader to generate embeddings
     batch_size = batch_size
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
-
+    
     model = FoundationalCVModel(backbone)
+    model.to(device)
 
     img_names = []
     features = []
     for batch_number, batch in enumerate(dataloader, start=1):
-        img_names_aux, features_aux = generate_embeddings(batch, batch_number, model)
+        img_names_aux, features_aux = generate_embeddings(batch, batch_number, model, device)
         img_names.append(img_names_aux)
         features.append(features_aux)
 
