@@ -82,7 +82,9 @@ This project uses 8 datasets. You'll find instructions and code about to extract
 
 7. [A Multi-Modal Satellite Imagery Dataset for Public Health Analysis in Colombia](https://physionet.org/content/multimodal-satellite-data/1.0.0/) : The Multi-Modal Satellite Imagery Dataset in Colombia integrates economic, demographic, meteorological, and epidemiological data. It comprises 12,636 high-quality satellite images from 81 municipalities between 2016 and 2018, with minimal cloud cover. Its applications include deforestation monitoring, education indices forecasting, water quality assessment, extreme climatic event tracking, epidemic illness addressing, and precision agriculture optimization. We'll use it shortly.
 
-8.[MIMIC CXR](https://physionet.org/content/mimic-cxr/2.0.0/#files-panel) : The MIMIC-CXR (Medical Information Mart for Intensive Care, Chest X-Ray) dataset is a large, publicly available collection of chest radiographs with associated radiology reports. It was developed by the MIT Lab for Computational Physiology and provides an extensive resource for training and evaluating machine learning models in the field of medical imaging, particularly in automated radiograph interpretation and natural language processing for clinical narratives.
+8. [MIMIC CXR](https://physionet.org/content/mimic-cxr/2.0.0/#files-panel) : The MIMIC-CXR (Medical Information Mart for Intensive Care, Chest X-Ray) dataset is a large, publicly available collection of chest radiographs with associated radiology reports. It was developed by the MIT Lab for Computational Physiology and provides an extensive resource for training and evaluating machine learning models in the field of medical imaging, particularly in automated radiograph interpretation and natural language processing for clinical narratives.
+
+9. **Joslin dataset**: 
 
 ## Usage
 
@@ -92,6 +94,9 @@ This project uses 8 datasets. You'll find instructions and code about to extract
 2. **Extract the Embeddings:**
     - **Text Embeddings:**
         - For extracting text embeddings, use models supporting OpenAI API like GPT-3.5, GPT-4, or models compatible with the llama cpp package such as LLAMA 2 7B, LLAMA 2 13B, LLAMA 2 70B, or Mistral 7B. Refer to `generate_text_embeddings.ipynb` for the process, in this case we used LLAMA 2 70B.
+        
+        - To use gpu's run `CUDACXX=path_to_nvcc CMAKE_ARGS="-DLLAMA_CUBLAS=on -DCMAKE_CUDA_ARCHITECTURES=all-major" FORCE_CMAKE=1 pip install llama-cpp-python --no-cache-dir --force-reinstall --upgrade`, see more [here](https://stackoverflow.com/questions/76963311/llama-cpp-python-not-using-nvidia-gpu-cuda)
+    
     - **Image Embeddings:**
         - Choose from 21 available pre-trained computer vision models to extract image embeddings. Check out `generate_image_embeddings.ipynb` for the process, in this example we used Dino V2 Base.
 
