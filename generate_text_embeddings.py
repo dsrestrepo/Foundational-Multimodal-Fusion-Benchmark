@@ -1,8 +1,8 @@
 
-from src.nlp_models import LLAMA
+from src.nlp_models_gpu import LLAMA
 #from src.nlp_models import GPT
 import pandas as pd
-model = LLAMA(embeddings=True, n_gpu_layers=-1)
+model = LLAMA(embeddings=True)
 
 model.path = 'datasets/joslin/labels.csv'
 column = 'text'
