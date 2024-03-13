@@ -233,7 +233,7 @@ class GPT:
 # Create a class to handle the LLAMA 2
 class LLAMA:
     # build the constructor
-    def __init__(self, model='Llama-2-7b', embeddings=False, temperature=0.0, n_repetitions=1, reasoning=False, languages=['english', 'portuguese'], path='data/Portuguese.csv', max_tokens=2048, n_ctx=2048, verbose=False, n_gpu_layers=None):
+    def __init__(self, model='Llama-2-7b', embeddings=False, temperature=0.0, n_repetitions=1, reasoning=False, languages=['english', 'portuguese'], path='data/Portuguese.csv', max_tokens=2048, n_ctx=2048, verbose=False, n_gpu_layers=None, echo=True):
         
         self.embeddings = embeddings
         self.n_gpu_layers = n_gpu_layers
@@ -243,7 +243,9 @@ class LLAMA:
         
         from llama_cpp import Llama
         if self.n_gpu_layers:
-            self.llm = Llama(model_path=model_path, embedding=self.embeddings, verbose=verbose, n_gpu_layers=n_gpu_layers)
+            self.llm = Llama(model_path=model_path, embedding=self.embeddings, verbose=verbose, n_gpu_layers=self.n_gpu_layers, echo = True)
+            print(f"Testing: self.n_gpu_layers: {self.n_gpu_layers}")
+        
         else:
             self.llm = Llama(model_path=model_path, embedding=self.embeddings, verbose=verbose)
                 
@@ -254,7 +256,6 @@ class LLAMA:
         self.reasoning = reasoning
         self.languages = languages
         self.max_tokens = max_tokens
-        
         
         self.delimiter = "####"
         self.responses = ['A', 'B', 'C', 'D']

@@ -95,7 +95,8 @@ This project uses 8 datasets. You'll find instructions and code about to extract
     - **Text Embeddings:**
         - For extracting text embeddings, use models supporting OpenAI API like GPT-3.5, GPT-4, or models compatible with the llama cpp package such as LLAMA 2 7B, LLAMA 2 13B, LLAMA 2 70B, or Mistral 7B. Refer to `generate_text_embeddings.ipynb` for the process, in this case we used LLAMA 2 70B.
         
-        - To use gpu's run `CUDACXX=path_to_nvcc CMAKE_ARGS="-DLLAMA_CUBLAS=on -DCMAKE_CUDA_ARCHITECTURES=all-major" FORCE_CMAKE=1 pip install llama-cpp-python --no-cache-dir --force-reinstall --upgrade`, see more [here](https://stackoverflow.com/questions/76963311/llama-cpp-python-not-using-nvidia-gpu-cuda)
+        - To use gpu's run `CUDACXX=/usr/local/cuda-11.8/bin/nvcc CMAKE_ARGS="-DLLAMA_CUBLAS=on
+-DCMAKE_CUDA_ARCHITECTURES=all-major" FORCE_CMAKE=1 pip install llama-cpp-python==0.2.11 --no-cache-dir --force-reinstall`, see more [here](https://stackoverflow.com/questions/76963311/llama-cpp-python-not-using-nvidia-gpu-cuda)
     
     - **Image Embeddings:**
         - Choose from 21 available pre-trained computer vision models to extract image embeddings. Check out `generate_image_embeddings.ipynb` for the process, in this example we used Dino V2 Base.
