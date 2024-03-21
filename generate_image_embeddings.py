@@ -25,7 +25,7 @@ backbones = dino_backbone + clip_backbone + sam_backbone + convnext_backbone + s
 batch_size = 32
 path = 'datasets/joslin/images'
 dataset = 'joslin'
-backbone = 'dinov2_base'
+backbone = 'clip_base'#'dinov2_base'
 out_dir = 'Embeddings'
 device = "cuda"
 

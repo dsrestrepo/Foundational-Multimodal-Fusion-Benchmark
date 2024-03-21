@@ -36,6 +36,10 @@ import warnings
 warnings.filterwarnings("ignore")
 
 ######### Merge Datasets #########
+# Define a function to check if a value is a list
+def is_list(value):
+    return isinstance(value, str)
+
 
 def process_embeddings(df, col_name):
     """
@@ -56,6 +60,12 @@ def process_embeddings(df, col_name):
     Example:
     df_processed = process_embeddings(df, 'embeddings')
     """
+    print("S: check str")
+    # Apply the function to each element in the 'embeddings' column
+    mask = df['embeddings'].apply(is_list)
+
+    # Filter out the rows where the elements are not lists
+    df = df[mask]
     # Step 1: Convert the values in the column to lists
     df[col_name] = df[col_name].apply(eval)
 
@@ -112,16 +122,20 @@ def preprocess_data(text_data, image_data, text_id="image_id", image_id="ImageNa
     text_data = process_embeddings(text_data, embeddings_col)
     image_data = rename_image_embeddings(image_data)
     
-    # Remove file extension from image_id
-    if text_data[text_id].dtype != int:
-        text_data[text_id] = text_data[text_id].apply(lambda x: int(x.split('.')[0]) if x.split('.')[0].isdigit() else x.split('.')[0])
-    if image_data[image_id].dtype != int:
-        image_data[image_id] = image_data[image_id].apply(lambda x: int(x.split('.')[0]) if x.split('.')[0].isdigit() else x.split('.')[0])
-    #text_data[text_id] = text_data[text_id].apply(lambda x: x.split('.')[0])
-    #image_data[image_id] = image_data[image_id].apply(lambda x: x.split('.')[0])
+    # # Remove file extension from image_id
+    # if text_data[text_id].dtype != int:
+    #     text_data[text_id] = text_data[text_id].apply(lambda x: int(x.split('.')[0]) if x.split('.')[0].isdigit() else x.split('.')[0])
+    # if image_data[image_id].dtype != int:
+    #     image_data[image_id] = image_data[image_id].apply(lambda x: int(x.split('.')[0]) if x.split('.')[0].isdigit() else x.split('.')[0])
+    text_data[text_id] = text_data[text_id].apply(lambda x: str(x).split('.')[0] if isinstance(x, str) else x)
+
+    # text_data[text_id] = text_data[text_id].apply(lambda x: x.split('.')[0])
+    image_data[image_id] = image_data[image_id].apply(lambda x: x.split('.')[0])
 
     # Merge dataframes using image_id
-    df = pd.merge(text_data, image_data, left_on=text_id, right_on=image_id)
+    # df = pd.merge(text_data, image_data, left_on=text_id, right_on=image_id)
+    
+    df = pd.concat([text_data, image_data], axis=0)
 
     # Drop unnecessary columns
     df.drop([image_id, text_id], axis=1, inplace=True)
@@ -171,8 +185,11 @@ def process_labels(df, col='answer', mlb=None, train_columns=None):
     Example:
     one_hot_labels, mlb, train_columns = process_labels(df, col='answer')
     """
+    df.DR_3 = df.DR_3.astype(str)
+    
     if mlb is None:
         mlb = MultiLabelBinarizer()
+
         if df[col].dtype == int:
             label = df[col]
         else:
@@ -508,10 +525,12 @@ def train_early_fusion(train_loader, test_loader, text_input_size, image_input_s
     """
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
     model = EarlyFusionModel(text_input_size=text_input_size, image_input_size=image_input_size, output_size=output_size, p=p)
+    model = model.to(device)
     model = nn.DataParallel(model)
     
-    model.to(device)
+    
     
     print(f'The number of parameters of the model are: {count_parameters(model)}')
     
@@ -572,6 +591,7 @@ def train_early_fusion(train_loader, test_loader, text_input_size, image_input_s
         epoch_start_time = time.time()
         
         model.train()
+
         for batch in train_loader:
             text, image, labels = batch['text'].to(device), batch['image'].to(device), batch['labels'].to(device)
             optimizer.zero_grad()
