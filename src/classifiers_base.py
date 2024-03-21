@@ -50,7 +50,7 @@ def preprocess_df(df, image_columns, images_path):
         # print(img_path)
         
         try:
-            Image.open(img_path).convert("RGB")
+            # Image.open(img_path).convert("RGB")
             # print(img_path)
             return True
         except:

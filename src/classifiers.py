@@ -133,9 +133,9 @@ def preprocess_data(text_data, image_data, text_id="image_id", image_id="ImageNa
     image_data[image_id] = image_data[image_id].apply(lambda x: x.split('.')[0])
 
     # Merge dataframes using image_id
-    # df = pd.merge(text_data, image_data, left_on=text_id, right_on=image_id)
+    df = pd.merge(text_data, image_data, left_on=text_id, right_on=image_id)
     
-    df = pd.concat([text_data, image_data], axis=0)
+    # df = pd.concat([text_data, image_data], axis=0)
 
     # Drop unnecessary columns
     df.drop([image_id, text_id], axis=1, inplace=True)
