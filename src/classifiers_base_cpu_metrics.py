@@ -709,8 +709,8 @@ def train_early_fusion(train_loader, test_loader, output_size, num_epochs=5, mul
                         else:
                             preds = torch.softmax(outputs, dim=1)
 
-                        y_true.extend(labels.numpy())
-                        y_pred.extend(preds.numpy())
+                        y_true.extend(labels.cpu().numpy())
+                        y_pred.extend(preds.cpu().numpy())
 
                 y_true, y_pred = np.array(y_true), np.array(y_pred)
 
@@ -771,8 +771,8 @@ def train_early_fusion(train_loader, test_loader, output_size, num_epochs=5, mul
                     preds = torch.sigmoid(outputs)
                 else:
                     preds = torch.softmax(outputs, dim=1)
-                y_true.extend(labels.numpy())
-                y_pred.extend(preds.numpy())
+                y_true.extend(labels.cpu().numpy())
+                y_pred.extend(preds.cpu().numpy())
 
             y_true, y_pred = np.array(y_true), np.array(y_pred)
             if multilabel or (output_size == 1):
@@ -897,8 +897,8 @@ def train_late_fusion(train_loader, test_loader, output_size, num_epochs=5, mult
                             preds = torch.sigmoid(outputs)
                         else:
                             preds = torch.softmax(outputs, dim=1)
-                        y_true.extend(labels.numpy())
-                        y_pred.extend(preds.numpy())
+                        y_true.extend(labels.cpu().numpy())
+                        y_pred.extend(preds.cpu().numpy())
 
                 y_true, y_pred = np.array(y_true), np.array(y_pred)
                 if multilabel or (output_size == 1):
@@ -961,8 +961,8 @@ def train_late_fusion(train_loader, test_loader, output_size, num_epochs=5, mult
                     preds = torch.sigmoid(outputs)
                 else:
                     preds = torch.softmax(outputs, dim=1)
-                y_true.extend(labels.numpy())
-                y_pred.extend(preds.numpy())
+                y_true.extend(labels.cpu.().numpy())
+                y_pred.extend(preds.cpu().numpy())
                 
             y_true, y_pred = np.array(y_true), np.array(y_pred)
             

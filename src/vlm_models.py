@@ -1,6 +1,6 @@
 from transformers import CLIPModel, CLIPProcessor
-from transformers import AutoProcessor, LlavaForConditionalGeneration
-from transformers import Blip2Processor, Blip2ForConditionalGeneration
+# from transformers import AutoProcessor, LlavaForConditionalGeneration
+# from transformers import Blip2Processor, Blip2ForConditionalGeneration
 import torch
 import torch.nn as nn
 import subprocess
@@ -48,10 +48,14 @@ class CLIP:
         self.model = CLIPModel.from_pretrained(model_name)
         self.processor = CLIPProcessor.from_pretrained(model_name)
 
-    def get_embeddings(self, dataframe, batch_size, image_col_name, text_col_name, image_path=None, output_dir='vlm_embeddings', output_file='clip_embeddings.csv'):
+    def get_embeddings(self, dataframe, batch_size, image_col_name, text_col_name, image_path=None, output_dir='vlm_embeddings', output_file='clip_embeddings.csv', device="cuda"):
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
-
+            # Check if the device string is valid
+        if device not in ['cuda', 'cpu']:
+            raise ValueError("Invalid device name. Please provide 'cuda' or 'cpu'.")
+        
+        device = torch.device(device)
         dataset = CLIPDataset(dataframe, image_col_name, text_col_name, image_path, self.processor)
         dataloader = DataLoader(dataset, batch_size=batch_size, collate_fn=lambda x: custom_collate_fn(x, self.processor))
 
@@ -62,6 +66,8 @@ class CLIP:
         # Process batches with a progress bar
         for batch in tqdm(dataloader, desc="Processing batches"):
             with torch.no_grad():
+                self.model.to(device)
+                batch = batch.to(device)
                 outputs = self.model(**batch)
             image_embeddings_list.append(outputs.image_embeds.cpu().numpy())
             text_embeddings_list.append(outputs.text_embeds.cpu().numpy())

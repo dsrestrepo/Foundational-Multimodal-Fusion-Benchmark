@@ -45,19 +45,25 @@ warnings.filterwarnings("ignore")
 def preprocess_df(df, image_columns, images_path):
     # Function to check if an image can be opened
     def is_valid_image(img_path):
-        #img_path = os.path.join(images_path, img_path)
+        img_path = os.path.join(images_path, img_path)
+        # img_path = str(int(img_path)) + ".jpeg"
+        # print(img_path)
+        
         try:
-            Image.open(img_path).convert("RGB")
+            # Image.open(img_path).convert("RGB")
+            # print(img_path)
             return True
         except:
+            
+            print("invalid path!")
             return False
 
     # Function to correct image paths without extensions
     def correct_image_path(img_path):
         if type(img_path) != str:
             img_path = str(img_path)
-            if len(img_path) < 12:
-                img_path = '0' * (12 - len(img_path)) + img_path
+            # if len(img_path) < 12:
+            #     img_path = '0' * (12 - len(img_path)) + img_path
     
         full_img_path = os.path.join(images_path, img_path)
         img_path, file_name = os.path.split(full_img_path)
@@ -562,7 +568,7 @@ def test_model(y_test, y_pred):
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
     
-def train_early_fusion(train_loader, test_loader, output_size, num_epochs=5, multilabel=True, report=False, lr=0.001, adam=False, set_weights=True, freeze_backbone=True, p=0.0):
+def train_early_fusion(train_loader, test_loader, output_size, num_epochs=5, multilabel=True, report=False, lr=0.001, adam=False, set_weights=True, freeze_backbone=True, p=0.0, device="cuda"):
     """
     Train an Early Fusion Model.
 
@@ -580,8 +586,9 @@ def train_early_fusion(train_loader, test_loader, output_size, num_epochs=5, mul
     train_early_fusion(train_loader, test_loader, text_input_size=512, image_input_size=256, output_size=10, num_epochs=5, multilabel=True)
     """
     
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    
+    if device not in ['cuda', 'cpu']:
+        raise ValueError("Invalid device name. Please provide 'cuda' or 'cpu'.")
+
     text_model = TextModel()
     image_model = VisionModel()
     model = EarlyFusionModel(text_model=text_model, image_model=image_model, output_size=output_size, freeze_backbone=freeze_backbone, p=p)
@@ -625,6 +632,9 @@ def train_early_fusion(train_loader, test_loader, output_size, num_epochs=5, mul
     train_accuracy_list = []
     test_accuracy_list = []
     f1_accuracy_list = []
+    
+    model = model.to(device)
+    criterion = criterion.to(device)
     
     # Initialize variables to store total training and inference times
     total_training_time = 0
@@ -737,7 +747,7 @@ def train_early_fusion(train_loader, test_loader, output_size, num_epochs=5, mul
             
 
 # Function to train late fusion model (similar changes)
-def train_late_fusion(train_loader, test_loader, output_size, num_epochs=5, multilabel=True, report=False, lr=0.001, adam=False, set_weights=True, freeze_backbone=True, p=0.0):
+def train_late_fusion(train_loader, test_loader, output_size, num_epochs=5, multilabel=True, report=False, lr=0.001, adam=False, set_weights=True, freeze_backbone=True, p=0.0, device = "cuda"):
     """
     Train a Late Fusion Model.
 
@@ -754,9 +764,11 @@ def train_late_fusion(train_loader, test_loader, output_size, num_epochs=5, mult
     Example:
     train_late_fusion(train_loader, test_loader, text_input_size=512, image_input_size=256, output_size=10, num_epochs=5, multilabel=True)
     """
-    
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    
+    if device not in ['cuda', 'cpu']:
+        raise ValueError("Invalid device name. Please provide 'cuda' or 'cpu'.")
+
+    # Set the device
+    device = torch.device(device)
     text_model = TextModel()
     image_model = VisionModel()
     model = LateFusionModel(text_model=text_model, image_model=image_model, output_size=output_size, freeze_backbone=freeze_backbone, p=p)
@@ -805,6 +817,9 @@ def train_late_fusion(train_loader, test_loader, output_size, num_epochs=5, mult
     train_accuracy_list = []
     test_accuracy_list = []
     f1_accuracy_list = []
+    
+    model = model.to(device)
+    criterion = criterion.to(device)
     
     # Initialize variables to store total training and inference times
     total_training_time = 0

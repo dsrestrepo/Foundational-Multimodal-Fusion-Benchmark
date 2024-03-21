@@ -520,7 +520,7 @@ def test_model(y_test, y_pred):
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
     
-def train_early_fusion(train_loader, test_loader, text_input_size, image_input_size, output_size, num_epochs=5, multilabel=True, report=False, lr=0.001, set_weights=True, adam=False, p=0.0):
+def train_early_fusion(train_loader, test_loader, text_input_size, image_input_size, output_size, num_epochs=5, multilabel=True, report=False, lr=0.001, set_weights=True, adam=False, p=0.0, device="cuda"):
     """
     Train an Early Fusion Model.
 
@@ -537,10 +537,14 @@ def train_early_fusion(train_loader, test_loader, text_input_size, image_input_s
     Example:
     train_early_fusion(train_loader, test_loader, text_input_size=512, image_input_size=256, output_size=10, num_epochs=5, multilabel=True)
     """
-    
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    if device not in ['cuda', 'cpu']:
+        raise ValueError("Invalid device name. Please provide 'cuda' or 'cpu'.")
+
+    # Set the device
+    device = torch.device(device)
     model = EarlyFusionModel(text_input_size=text_input_size, image_input_size=image_input_size, output_size=output_size, p=p)
-        
+    # model = model.to(device)  
+    
     # Calculate memory usages
     model_memory = model_memory_usage(model)
     #batch_memory = batch_memory_usage(train_loader)
@@ -549,8 +553,6 @@ def train_early_fusion(train_loader, test_loader, text_input_size, image_input_s
     #print(f"Single Batch Memory Usage: {batch_memory:.2f} MB")
     
     model = nn.DataParallel(model)
-    
-    model.to(device)
     
     print(f'The number of parameters of the model are: {count_parameters(model)}')
     if set_weights:
@@ -599,6 +601,8 @@ def train_early_fusion(train_loader, test_loader, text_input_size, image_input_s
     total_training_time = 0
     total_inference_time = 0
     
+    model = model.to(device)
+    criterion = criterion.to(device)
     
     with profiler.profile(activities=[ProfilerActivity.CPU], profile_memory=True, record_shapes=True, use_cuda=False) as prof:
         for epoch in range(num_epochs):
@@ -636,8 +640,8 @@ def train_early_fusion(train_loader, test_loader, text_input_size, image_input_s
                         else:
                             preds = torch.softmax(outputs, dim=1)
                             
-                        y_true.extend(labels.numpy())
-                        y_pred.extend(preds.numpy())
+                        y_true.extend(labels.cpu().numpy())
+                        y_pred.extend(preds.cpu().numpy())
 
                 y_true, y_pred = np.array(y_true), np.array(y_pred)
 
@@ -700,8 +704,8 @@ def train_early_fusion(train_loader, test_loader, text_input_size, image_input_s
                     preds = torch.sigmoid(outputs)
                 else:
                     preds = torch.softmax(outputs, dim=1)
-                y_true.extend(labels.numpy())
-                y_pred.extend(preds.numpy())
+                y_true.extend(labels.cpu().numpy())
+                y_pred.extend(preds.cpu().numpy())
 
             y_true, y_pred = np.array(y_true), np.array(y_pred)
             if multilabel or (output_size == 1):
@@ -715,7 +719,7 @@ def train_early_fusion(train_loader, test_loader, text_input_size, image_input_s
             
 
 # Function to train late fusion model (similar changes)
-def train_late_fusion(train_loader, test_loader, text_input_size, image_input_size, output_size, num_epochs=5, multilabel=True, report=False, lr=0.001, set_weights=True, adam=False, p=0.0):
+def train_late_fusion(train_loader, test_loader, text_input_size, image_input_size, output_size, num_epochs=5, multilabel=True, report=False, lr=0.001, set_weights=True, adam=False, p=0.0, device = "cuda"):
     """
     Train a Late Fusion Model.
 
@@ -732,7 +736,12 @@ def train_late_fusion(train_loader, test_loader, text_input_size, image_input_si
     Example:
     train_late_fusion(train_loader, test_loader, text_input_size=512, image_input_size=256, output_size=10, num_epochs=5, multilabel=True)
     """
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    if device not in ['cuda', 'cpu']:
+        raise ValueError("Invalid device name. Please provide 'cuda' or 'cpu'.")
+
+    # Set the device
+    device = torch.device(device)
+    
     model = LateFusionModel(text_input_size=text_input_size, image_input_size=image_input_size, output_size=output_size, p=p)
         
     # Calculate memory usages
@@ -744,8 +753,6 @@ def train_late_fusion(train_loader, test_loader, text_input_size, image_input_si
     
     model = nn.DataParallel(model)
     
-    model.to(device)
-        
     print(f'The number of parameters of the model are: {count_parameters(model)}')
 
     if set_weights:
@@ -795,6 +802,9 @@ def train_late_fusion(train_loader, test_loader, text_input_size, image_input_si
     # Initialize variables to store total training and inference times
     total_training_time = 0
     total_inference_time = 0
+        
+    model = model.to(device)
+    criterion = criterion.to(device)
     
     with profiler.profile(activities=[ProfilerActivity.CPU], profile_memory=True, record_shapes=True, use_cuda=False) as prof:
 
@@ -832,8 +842,8 @@ def train_late_fusion(train_loader, test_loader, text_input_size, image_input_si
                             preds = torch.sigmoid(outputs)
                         else:
                             preds = torch.softmax(outputs, dim=1)
-                        y_true.extend(labels.numpy())
-                        y_pred.extend(preds.numpy())
+                        y_true.extend(labels.cpu().numpy())
+                        y_pred.extend(preds.cpu().numpy())
 
                 y_true, y_pred = np.array(y_true), np.array(y_pred)
 
@@ -895,8 +905,8 @@ def train_late_fusion(train_loader, test_loader, text_input_size, image_input_si
                     preds = torch.sigmoid(outputs)
                 else:
                     preds = torch.softmax(outputs, dim=1)
-                y_true.extend(labels.numpy())
-                y_pred.extend(preds.numpy())
+                y_true.extend(labels.cpu().numpy())
+                y_pred.extend(preds.cpu().numpy())
                 
             y_true, y_pred = np.array(y_true), np.array(y_pred)
             
