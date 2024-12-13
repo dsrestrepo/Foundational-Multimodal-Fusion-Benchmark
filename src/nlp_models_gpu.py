@@ -527,3 +527,172 @@ class LLAMA:
                 df.to_csv(f"responses/{self.model}_Temperature{str(self.temperature).replace('.', '_')}_{self.n_repetitions}Repetitions.csv", index=False)
 
         return df
+
+
+
+
+
+from transformers import AutoTokenizer, AutoModel
+import torch
+
+
+## Hugging face Models
+class HuggingFaceEmbeddings:
+    """
+    A class to handle text embedding generation using a Hugging Face pre-trained transformer model.
+    This class loads the model, tokenizes the input text, generates embeddings, and provides an option 
+    to save the embeddings to a CSV file.
+
+    Args:
+        model_name (str, optional): The name of the Hugging Face pre-trained model to use for generating embeddings. 
+                                    Default is 'sentence-transformers/all-MiniLM-L6-v2'.
+        path (str, optional): The path to the CSV file containing the text data. Default is 'data/file.csv'.
+        save_path (str, optional): The directory path where the embeddings will be saved. Default is 'Models'.
+        device (str, optional): The device to run the model on ('cpu' or 'cuda'). If None, it will automatically detect 
+                                a GPU if available; otherwise, it defaults to CPU.
+
+    Attributes:
+        model_name (str): The name of the Hugging Face model used for embedding generation.
+        tokenizer (transformers.AutoTokenizer): The tokenizer corresponding to the chosen model.
+        model (transformers.AutoModel): The pre-trained model loaded for embedding generation.
+        path (str): Path to the input CSV file.
+        save_path (str): Directory where the embeddings CSV will be saved.
+        device (torch.device): The device on which the model and data are processed (CPU or GPU).
+
+    Methods:
+        get_embedding(text):
+            Generates embeddings for a given text input using the pre-trained model.
+
+        get_embedding_df(column, directory, file):
+            Reads a CSV file, computes embeddings for a specified text column, and saves the resulting DataFrame 
+            with embeddings to a new CSV file in the specified directory.
+
+    Example:
+        embedding_instance = HuggingFaceEmbeddings(model_name='sentence-transformers/all-MiniLM-L6-v2', 
+                                                   path='data/products.csv', save_path='output')
+        text_embedding = embedding_instance.get_embedding("Sample product description.")
+        embedding_instance.get_embedding_df(column='description', directory='output', file='product_embeddings.csv')
+
+    Notes:
+        - The Hugging Face model and tokenizer are downloaded from the Hugging Face hub.
+        - The function supports large models and can run on either GPU or CPU, depending on device availability.
+        - The input text will be truncated and padded to a maximum length of 512 tokens to fit into the model.
+    """
+    
+    def __init__(self, model_name='sentence-transformers/all-MiniLM-L6-v2', path='data/file.csv', save_path=None, device=None, quantization=None, access_token=None):
+        """
+        Initializes the HuggingFaceEmbeddings class with the specified model and paths.
+
+        Args:
+            model_name (str, optional): The name of the Hugging Face pre-trained model. Default is 'sentence-transformers/all-MiniLM-L6-v2'.
+            path (str, optional): The path to the CSV file containing text data. Default is 'data/file.csv'.
+            save_path (str, optional): Directory path where the embeddings will be saved. Default is 'Models'.
+            device (str, optional): Device to use for model processing. Defaults to 'cuda' if available, otherwise 'cpu'.
+            quantization (str, optional): The type of quantization to use. Can be 'fp16', 'int8', or 'int4'. Defaults to None.
+            access_token (str, optional): An optional access token for loading private models from the Hugging Face hub.
+        """
+        self.model_name = model_name
+        self.quantization = quantization
+        
+        # Load the Hugging Face tokenizer from a pre-trained model
+        if access_token:
+            self.tokenizer = AutoTokenizer.from_pretrained(model_name, token=access_token)
+            # Load model with the desired quantization
+            if self.quantization == 'fp16':
+                print("Loading model with fp16 quantization...")
+                self.model = AutoModel.from_pretrained(model_name, torch_dtype=torch.float16, token=access_token)
+            elif self.quantization == 'int8':
+                print("Loading model with 8-bit quantization...")
+                from transformers import BitsAndBytesConfig
+                bnb_config = BitsAndBytesConfig(load_in_8bit=True)
+                self.model = AutoModel.from_pretrained(model_name, quantization_config=bnb_config, token=access_token)
+            elif self.quantization == 'int4':
+                print("Loading model with 4-bit quantization...")
+                from transformers import BitsAndBytesConfig
+                bnb_config = BitsAndBytesConfig(load_in_4bit=True)
+                self.model = AutoModel.from_pretrained(model_name, quantization_config=bnb_config, token=access_token)
+            else:
+                print("Loading model without quantization...")
+                self.model = AutoModel.from_pretrained(model_name)
+        else:
+            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+            # Load model with the desired quantization
+            if self.quantization == 'fp16':
+                print("Loading model with fp16 quantization...")
+                self.model = AutoModel.from_pretrained(model_name, torch_dtype=torch.float16)
+            elif self.quantization == 'int8':
+                print("Loading model with 8-bit quantization...")
+                from transformers import BitsAndBytesConfig
+                bnb_config = BitsAndBytesConfig(load_in_8bit=True)
+                self.model = AutoModel.from_pretrained(model_name, quantization_config=bnb_config)
+            elif self.quantization == 'int4':
+                print("Loading model with 4-bit quantization...")
+                from transformers import BitsAndBytesConfig
+                bnb_config = BitsAndBytesConfig(load_in_4bit=True)
+                self.model = AutoModel.from_pretrained(model_name, quantization_config=bnb_config)
+            else:
+                print("Loading model without quantization...")
+                self.model = AutoModel.from_pretrained(model_name)
+        
+        if 'Llama-3.1' in model_name:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
+        
+        self.path = path
+        self.save_path = save_path or 'Models'
+        
+        # Define device
+        if device is None:
+            self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        else:
+            self.device = torch.device(device)
+            
+
+        # Move model to the specified device if not quantized
+        if self.quantization in ['int8', 'int4']:
+            print(f"Quantized model ({self.quantization}) is already on the correct device.")
+            # Check the device of the quantized model
+            first_param_device = next(self.model.parameters()).device
+            print(f"Quantized model is on device: {first_param_device}")
+        else:
+            print(f"Using device: {self.device}")
+            self.model.to(self.device)
+            print(f"Model moved to device: {self.device}")
+            
+        print(f"Model: {model_name}")
+        
+        
+    def get_embedding(self, text):
+        """
+        Generates embeddings for a given text using the Hugging Face model.
+
+        Args:
+            text (str): The input text for which embeddings will be generated.
+
+        Returns:
+            np.ndarray: A numpy array containing the embedding vector for the input text.
+        """
+        ### Tokenize the input text using the Hugging Face tokenizer
+        inputs = self.tokenizer(text, return_tensors="pt", truncation=True, padding=True, max_length=512)
+        
+        # Move the inputs to the device
+        inputs = {key: value.to(self.device) for key, value in inputs.items()}
+        
+        with torch.no_grad():
+            # Generate the embeddings using the Hugging Face model from the tokenized input
+            outputs = self.model(**inputs)
+        
+        # Extract the embeddings from the model output, send to cpu and return the numpy array
+        # The resulting tensor should have shape [batch_size, hidden_size]
+        embeddings = outputs.last_hidden_state.mean(dim=1).cpu().numpy()[0]
+        
+        return embeddings
+
+    def get_embedding_df(self, column, directory, file):
+        # Load the CSV file
+        df = pd.read_csv(self.path)
+        # Generate embeddings for the specified column using the `get_embedding` method
+        df["embeddings"] = df[column].apply(lambda x: self.get_embedding(x).tolist())
+        
+        # Save the DataFrame with the embeddings to a new CSV file in the specified directory
+        os.makedirs(directory, exist_ok=True)
+        df.to_csv(f"{directory}/{file}", index=False)

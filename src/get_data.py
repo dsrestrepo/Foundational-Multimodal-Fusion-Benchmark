@@ -878,6 +878,54 @@ def brset_preprocessing(dataset_path, filename='labels.csv', output_filename='la
 
     print(f"Processed dataset saved as {output_filename} in {dataset_path}")
 
+def mbrset_preprocessing(dataset_path, filename='labels.csv', output_filename='labels.csv'):
+    # Load the dataset
+    df = pd.read_csv(f'{dataset_path}/{filename}')
+
+    # Define the conversion functions
+    def convert_sex(sex):
+        return 'male' if sex == 1 else 'female' if sex == 2 else 'no sex reported'
+    
+    def convert_eye(eye):
+        return 'right' if eye == 1 else 'left' if eye == 2 else 'no eye reported'
+    
+    def convert_presence(presence):
+        return 'present' if presence == 1 else 'absent'
+    
+    # Create the 'text' column with conditions
+    df['text'] = df.apply(lambda row: (
+        f"An image from the {convert_eye(row['exam_eye'])} eye of a {convert_sex(row['patient_sex'])} patient, "
+        f"aged {'no age reported' if pd.isnull(row['patient_age']) else str(float(str(row['patient_age']).replace('O', '0').replace(',', '.')))} years, "
+        f"{'with no comorbidities reported' if pd.isnull(row['comorbidities']) else 'with comorbidities: ' + row['comorbidities']}, "
+        f"{'with no diabetes duration reported' if pd.isnull(row['diabetes_time_y']) or row['diabetes_time_y'] == 'Não' else 'diabetes diagnosed for ' + str(float(str(row['diabetes_time_y']).replace('O', '0').replace(',', '.'))) + ' years'}, "
+        f"{'not using insulin' if row['insuline'] == 'no' else 'using insulin'}. "
+        f"The optic disc is {convert_presence(row['optic_disc'])}, vessels are {convert_presence(row['vessels'])}, "
+        f"and the macula is {convert_presence(row['macula'])}. "
+        f"Conditions include macular edema: {convert_presence(row['macular_edema'])}, scar: {convert_presence(row['scar'])}, "
+        f"nevus: {convert_presence(row['nevus'])}, amd: {convert_presence(row['amd'])}, vascular occlusion: {convert_presence(row['vascular_occlusion'])}, "
+        f"drusens: {convert_presence(row['drusens'])}, hemorrhage: {convert_presence(row['hemorrhage'])}, "
+        f"retinal detachment: {convert_presence(row['retinal_detachment'])}, myopic fundus: {convert_presence(row['myopic_fundus'])}, "
+        f"increased cup disc ratio: {convert_presence(row['increased_cup_disc'])}, and other conditions: {convert_presence(row['other'])}."
+    ), axis=1)
+
+    # Drop all columns except for 'image_id', 'DR_ICDR', and 'text'
+    df = df[['image_id', 'DR_ICDR', 'text']]
+
+    # Create DR_2 and DR_3 columns from DR_ICDR
+    df['DR_2'] = df['DR_ICDR'].apply(lambda x: 1 if x > 0 else 0)
+    df['DR_3'] = df['DR_ICDR'].apply(lambda x: 2 if x == 4 else (1 if x in [1, 2, 3] else 0))
+
+    # Create a 'split' column
+    df['split'] = 'train'  # Initialize all as 'train'
+    # Stratify split by 'DR_ICDR'
+    train_idx, test_idx = train_test_split(df.index, test_size=0.2, stratify=df['DR_ICDR'], random_state=42)
+    df.loc[test_idx, 'split'] = 'test'  # Update 'split' for test set
+
+    # Save the processed dataframe to a new CSV file
+    df.to_csv(f'{dataset_path}/{output_filename}', index=False)
+
+    print(f"Processed dataset saved as {output_filename} in {dataset_path}")
+
 
 
 ########### ham10000 ###########
@@ -1475,3 +1523,122 @@ def joslin_preprocessing(dataset_path, filename='labels.csv', output_filename='l
     df.to_csv(f'{dataset_path}/{output_filename}', index=False)
 
     print(f"Processed dataset saved as {output_filename} in {dataset_path}")
+
+
+
+
+
+
+
+
+
+
+
+
+def generate_patient_text(row):
+    """
+    Generates a descriptive text for each patient based on their characteristics,
+    including educational level.
+    """
+    
+    # Helper function to format binary values
+    def binary_to_text(value, true_text, false_text):
+        return true_text if value == 1 else false_text
+    
+    # Map for educational levels
+    education_map = {
+        1.0: "illiterate",
+        2.0: "with incomplete primary education",
+        3.0: "with complete primary education",
+        4.0: "with incomplete secondary education",
+        5.0: "with complete secondary education",
+        6.0: "with incomplete tertiary education",
+        7.0: "with complete tertiary education"
+    }
+    
+    # Age description
+    age_description = f"aged {row['age']} years" if not pd.isnull(row['age']) else "with age not reported"
+    
+    # Sex description
+    sex_description = "male" if row['sex'] == 1 else "female" if row['sex'] == 0 else "sex not reported"
+    
+    # Diabetes duration description
+    dm_duration = f"diagnosed with diabetes for {row['dm_time']} years" if not pd.isnull(row['dm_time']) else "with no reported diabetes duration"
+    
+    # Insulin use description
+    insulin_use = binary_to_text(row['insulin'], "using insulin", "not using insulin")
+    
+    # Oral treatment description
+    oral_treatment = binary_to_text(row['oraltreatment_dm'], "on oral treatment for diabetes", "not on oral treatment for diabetes")
+    
+    # Systemic hypertension description
+    hypertension = binary_to_text(row['systemic_hypertension'], "with systemic hypertension", "without systemic hypertension")
+    
+    # Alcohol consumption description
+    alcohol_use = binary_to_text(row['alcohol_consumption'], "consumes alcohol", "does not consume alcohol")
+    
+    # Smoking description
+    smoking = binary_to_text(row['smoking'], "smokes", "does not smoke")
+    
+    # Obesity description
+    obesity = binary_to_text(row['obesity'], "with obesity", "without obesity")
+    
+    # Vascular disease description
+    vascular_disease = binary_to_text(row['vascular_disease'], "has vascular disease", "does not have vascular disease")
+    
+    # Acute myocardial infarction description
+    myocardial_infarction = binary_to_text(row['acute_myocardial_infarction'], "has a history of acute myocardial infarction", "no history of acute myocardial infarction")
+    
+    # Nephropathy description
+    nephropathy = binary_to_text(row['nephropathy'], "with nephropathy", "without nephropathy")
+    
+    # Neuropathy description
+    neuropathy = binary_to_text(row['neuropathy'], "with neuropathy", "without neuropathy")
+    
+    # Diabetic foot description
+    diabetic_foot = binary_to_text(row['diabetic_foot'], "has diabetic foot", "does not have diabetic foot")
+    
+    # Educational level description
+    education_description = education_map.get(row['educational_level'], "with no educational level reported")
+    
+    # Generate the full description
+    description = (
+        f"A {sex_description} patient {age_description}, {dm_duration}, {insulin_use}, and {oral_treatment}. "
+        f"The patient is {hypertension}, {alcohol_use}, {smoking}, {obesity}, and {vascular_disease}. "
+        f"Medical history includes: {myocardial_infarction}, {nephropathy}, {neuropathy}, and {diabetic_foot}. "
+        f"The patient is {education_description}."
+    )
+    
+    return description
+
+
+def mbrset_preprocessing(dataset_path, filename='labels_mbrset.csv', output_filename='labels.csv'):
+    # Load the dataset
+    df = pd.read_csv(f'{dataset_path}/{filename}')
+
+    # Create the 'text' column with conditions
+    df['text'] = df.apply(generate_patient_text, axis=1)
+
+    # Drop all columns except for 'image_id', 'DR_ICDR', and 'text'
+    df.rename(columns={'final_icdr': 'DR_ICDR'}, inplace=True)
+    df = df[['file', 'DR_ICDR', 'text']]
+
+    df.to_csv('prompt_eg.csv', index=False)
+
+    df.dropna(subset = ['DR_ICDR'], inplace=True)
+
+    # Create DR_2 and DR_3 columns from DR_ICDR
+    df['DR_2'] = df['DR_ICDR'].apply(lambda x: 1 if x > 0 else 0)
+    df['DR_3'] = df['DR_ICDR'].apply(lambda x: 2 if x == 4 else (1 if x in [1, 2, 3] else 0))
+
+    # Create a 'split' column
+    df['split'] = 'train'
+    # Stratify split by 'DR_ICDR'
+    train_idx, test_idx = train_test_split(df.index, test_size=0.2, stratify=df['DR_ICDR'], random_state=42)
+    df.loc[test_idx, 'split'] = 'test'  # Update 'split' for test set
+
+    # Save the processed dataframe to a new CSV file
+    df.to_csv(f'{dataset_path}/{output_filename}', index=False)
+
+    print(f"Processed dataset saved as {output_filename} in {dataset_path}")
+

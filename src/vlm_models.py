@@ -1,6 +1,6 @@
 from transformers import CLIPModel, CLIPProcessor
-# from transformers import AutoProcessor, LlavaForConditionalGeneration
-# from transformers import Blip2Processor, Blip2ForConditionalGeneration
+from transformers import AutoProcessor, LlavaForConditionalGeneration
+from transformers import Blip2Processor, Blip2ForConditionalGeneration
 import torch
 import torch.nn as nn
 import subprocess
