@@ -635,7 +635,9 @@ class HuggingFaceEmbeddings:
                 self.model = AutoModel.from_pretrained(model_name)
         
         if 'Llama-3.1' in model_name:
-            self.tokenizer.pad_token = self.tokenizer.eos_token
+            # Set the pad token to be the same as the eos token
+            if self.tokenizer.pad_token is None:
+                self.tokenizer.pad_token = self.tokenizer.eos_token
         
         self.path = path
         self.save_path = save_path or 'Models'
