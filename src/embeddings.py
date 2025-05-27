@@ -82,7 +82,7 @@ def generate_embeddings(batch, batch_number, model, device):
 
     return img_names, features
 
-def get_embeddings_df(batch_size=32, path="../BRSET/images/", dataset_name='BRSET', backbone="dinov2", directory='Embeddings', transform=None, image_files=None, device="cuda"):
+def get_embeddings_df(batch_size=32, path="../BRSET/images/", dataset_name='BRSET', backbone="dinov2", directory='Embeddings', transform=None, image_files=None, device="cuda", checkpoint_path=None):
     """
     Generate image embeddings and save them in a DataFrame.
 
@@ -93,6 +93,7 @@ def get_embeddings_df(batch_size=32, path="../BRSET/images/", dataset_name='BRSE
     - directory (str, optional): The directory to save the generated embeddings DataFrame. Default is 'Embeddings'.
     - dataset_name (str, optional): The dataset used to generate the embeddings. Default is 'BRSET'.
     - device (str, optional): The device to use for processing ('cuda' or 'cpu'). Default is 'cuda'.
+    - checkpoint_path (str, optional): Path to the pre-trained model checkpoint.
 
     Example Usage:
     ```python
@@ -114,17 +115,25 @@ def get_embeddings_df(batch_size=32, path="../BRSET/images/", dataset_name='BRSE
     device = torch.device(device)
     # Create the custom dataset
     shape = (224, 224)
-    if dataset_name == 'BRSET':
-        dataset = ImageFolderDataset(folder_path=path, shape=shape, transform=transform, image_files=image_files)
-    else:
-        dataset = ImageFolderDataset(folder_path=path, shape=shape, transform=transform, image_files=image_files)
-        
+
+    dataset = ImageFolderDataset(folder_path=path, shape=shape, transform=transform, image_files=image_files)
+    
     # Create a DataLoader to generate embeddings
     batch_size = batch_size
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
     
     model = FoundationalCVModel(backbone)
     model.to(device)
+    
+    # If a checkpoint is provided, load the pre-trained weights
+    if checkpoint_path and os.path.exists(checkpoint_path):
+        state_dict = torch.load(checkpoint_path, map_location=device)
+        model.load_state_dict(state_dict)
+        print(f"Loaded checkpoint from {checkpoint_path}")
+    
+    # Ensure the model is in evaluation mode
+    model.eval()
+    
 
     img_names = []
     features = []
@@ -159,8 +168,13 @@ def get_embeddings_df(batch_size=32, path="../BRSET/images/", dataset_name='BRSE
     
     if not os.path.exists(f'{directory}/{dataset_name}'):
         os.makedirs(f'{directory}/{dataset_name}')
-        
-    df.to_csv(f'{directory}/{dataset_name}/Embeddings_{backbone}.csv', index=False)
+    
+    if checkpoint_path:
+        # Save the DataFrame with the checkpoint name removing the path and extension
+        checkpoint_name = os.path.basename(checkpoint_path).split('.')[0]
+        df.to_csv(f'{directory}/{dataset_name}/Embeddings_{checkpoint_name}.csv', index=False)
+    else:    
+        df.to_csv(f'{directory}/{dataset_name}/Embeddings_{backbone}.csv', index=False)
     
 
 

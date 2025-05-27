@@ -2,31 +2,21 @@ from src.embeddings import get_embeddings_df
 import pandas as pd
 
 # Foundational Models
-dino_backbone = ['dinov2_small', 'dinov2_base', 'dinov2_large', 'dinov2_giant']
-
-sam_backbone = ['sam_base', 'sam_large', 'sam_huge']
-
-clip_backbone = ['clip_base', 'clip_large']
-
-# ImageNet:
+#dino_backbone = ['dinov2_small', 'dinov2_base', 'dinov2_large', 'dinov2_giant']
 
 ### Convnext
-convnext_backbone = ['convnextv2_tiny', 'convnextv2_base', 'convnextv2_large'] + ['convnext_tiny', 'convnext_small', 'convnext_base', 'convnext_large']
-
-### Swin Transformer
-swin_transformer_backbone = ['swin_tiny', 'swin_small', 'swin_base']
+#convnext_backbone = ['convnextv2_tiny', 'convnextv2_base', 'convnextv2_large'] + ['convnext_tiny', 'convnext_small', 'convnext_base', 'convnext_large']
 
 ### ViT
-vit_backbone = ['vit_base', 'vit_large']
+#vit_backbone = ['vit_base', 'vit_large']
 
-backbones = dino_backbone + clip_backbone + sam_backbone + convnext_backbone + swin_transformer_backbone + vit_backbone
-
+backbones = ['dinov2_base', 'convnextv2_base', 'vit_base'] # 'dinov2_base'
 
 batch_size = 32
-path = 'datasets/joslin/images'
-dataset = 'joslin'
-backbone = 'clip_base'#'dinov2_base'
+path = '/gpfs/workdir/restrepoda/datasets/mBRSET/mbrset/images'
+dataset = 'mbrset'
 out_dir = 'Embeddings'
 device = "cuda"
 
-get_embeddings_df(batch_size=batch_size, path=path, dataset_name=dataset, backbone=backbone, directory=out_dir, device = device)
+for backbone in backbones:
+    get_embeddings_df(batch_size=batch_size, path=path, dataset_name=dataset, backbone=backbone, directory=out_dir, device = device)

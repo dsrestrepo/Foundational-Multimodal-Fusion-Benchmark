@@ -2,7 +2,6 @@ from torchvision import models
 from transformers import ConvNextV2ForImageClassification
 from transformers import ViTModel
 from transformers import CLIPModel
-from segment_anything import SamPredictor, sam_model_registry
 import torch
 import torch.nn as nn
 import subprocess
@@ -117,6 +116,7 @@ class FoundationalCVModel(torch.nn.Module):
             self.backbone = torch.hub.load('facebookresearch/dinov2', backbone_path[backbone])
             
         elif backbone in ['sam_base', 'sam_large', 'sam_huge']:
+            from segment_anything import SamPredictor, sam_model_registry
             # Repo: https://github.com/facebookresearch/segment-anything
             # Paper: https://arxiv.org/abs/2304.02643
             
@@ -147,7 +147,7 @@ class FoundationalCVModel(torch.nn.Module):
                 'convnextv2_large': 'facebook/convnextv2-large-22k-224',
             }
             
-            self.backbone = ConvNextV2ForImageClassification.from_pretrained(backbone_path[backbone])
+            self.backbone = ConvNextV2ForImageClassification.from_pretrained(backbone_path[backbone], trust_remote_code=True)
             self.backbone = nn.Sequential(*list(self.backbone.children())[:-1])
             
 
